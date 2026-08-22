@@ -1,0 +1,27 @@
+# LaTeX build artifacts
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.out
+*.bbl
+*.blg
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Matplotlib / font / OS caches
+.cache/
+.mplconfig/
+.DS_Store
+
+# Downloaded third-party reference papers (not authored content)
+1707.07239v2.pdf
+2103.00946v1.pdf
+2509.26633v3.pdf
+p27.pdf
+
+# Redundant archive (benchmarks/ is tracked directly)
+benchmarks.zip

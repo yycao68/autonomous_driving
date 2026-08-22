@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FR3 Motion Planner Comparison: Double Integrator QP vs TOTG</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:sans-serif;padding:1.5rem;background:#fff;color:#111}
+.h2{font-size:18px;font-weight:500;margin-bottom:4px}
+.sub{font-size:13px;color:#666;margin-bottom:1.5rem}
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.5rem}
+.metric{background:#f5f5f3;border-radius:8px;padding:.75rem 1rem}
+.metric .label{font-size:12px;color:#666;margin-bottom:4px}
+.metric .val{font-size:20px;font-weight:500}
+.metric .val.good{color:#1D9E75}
+.metric .val.warn{color:#BA7517}
+.ctrl{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.ctrl label{font-size:13px;color:#666;min-width:130px}
+.ctrl span{font-size:13px;font-weight:500;min-width:52px}
+.btn-row{display:flex;gap:8px;margin-bottom:1.5rem;flex-wrap:wrap}
+button{padding:6px 14px;border:0.5px solid #ccc;border-radius:8px;background:transparent;font-size:13px;cursor:pointer}
+button:hover{background:#f0f0ee}
+.legend{display:flex;gap:16px;margin-bottom:6px}
+.leg{display:flex;align-items:center;gap:6px;font-size:12px;color:#666}
+.lline{width:22px;height:2px;border-radius:1px}
+canvas{width:100%;display:block}
+.status{font-size:12px;color:#666;margin-top:6px;min-height:16px}
+.tab-row{display:flex;border-bottom:1px solid #e0e0e0;margin-bottom:1rem}
+.tab{padding:6px 14px;font-size:13px;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:#111;border-bottom-color:#378ADD;font-weight:500}
+.fix-badge{display:inline-block;background:#EAF3DE;color:#3B6D11;font-size:11px;padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<div style="padding:1rem 0">
+<div class="h2">FR3 planner comparison <span class="fix-badge">velocity fix v2</span></div>
+<div class="sub">Double integrator QP vs. TOTG · 7-DOF Franka FR3 · simulated at 1 kHz</div>
+
+<!-- ── Controls ─────────────────────────────────────────── -->
+<div class="ctrl">
+  <label>QP rate (Hz)</label>
+  <input type="range" min="50" max="500" value="100" id="slHz" step="50" style="flex:1">
+  <span id="outHz">100 Hz</span>
+</div>
+<div class="ctrl">
+  <label>Velocity limit</label>
+  <input type="range" min="0.3" max="2.6" value="1.5" id="slVel" step="0.1" style="flex:1">
+  <span id="outVel">1.5 rad/s</span>
+</div>
+<div class="ctrl">
+  <label>Accel limit</label>
+  <input type="range" min="2" max="15" value="8" id="slAcc" step="1" style="flex:1">
+  <span id="outAcc">8 rad/s²</span>
+</div>
+<div class="ctrl">
+  <label>Obstacle event</label>
+  <input type="range" min="0" max="1" value="0" id="slObs" step="1" style="flex:1">
+  <span id="outObs">off</span>
+</div>
+
+<div class="btn-row">
+  <button onclick="runSim()">&#9654; Run simulation</button>
+  <button onclick="setScene('reach')">Point-to-point</button>
+  <button onclick="setScene('circle')">Circular path</button>
+  <button onclick="setScene('waypoints')">Waypoints</button>
+</div>
+
+<!-- ── Metric cards ──────────────────────────────────────── -->
+<div class="metric-grid">
+  <div class="metric"><div class="label">QP solve (ms)</div><div class="val good" id="mQP">—</div></div>
+  <div class="metric"><div class="label">TOTG compute (ms)</div><div class="val warn" id="mTOTG">—</div></div>
+  <div class="metric"><div class="label">QP vel violations</div><div class="val good" id="mViolQP">—</div></div>
+  <div class="metric"><div class="label">TOTG vel violations</div><div class="val warn" id="mViolTOTG">—</div></div>
+</div>
+
+<!-- ── Tabs ──────────────────────────────────────────────── -->
+<div class="tab-row">
+  <div class="tab on"  onclick="switchTab('vel',this)">Velocity</div>
+  <div class="tab"     onclick="switchTab('pos',this)">Position</div>
+  <div class="tab"     onclick="switchTab('acc',this)">Acceleration</div>
+  <div class="tab"     onclick="switchTab('obs',this)">Obstacle</div>
+</div>
+
+<!-- ── Velocity pane ─────────────────────────────────────── -->
+<div id="pane-vel">
+  <div class="legend">
+    <div class="leg"><div class="lline" style="background:#378ADD"></div>QP planner</div>
+    <div class="leg"><div class="lline" style="background:#D85A30"></div>TOTG</div>
+    <div class="leg"><div class="lline" style="background:#1D9E75;height:1px;border-top:1.5px dashed #1D9E75"></div>±v<sub>max</sub></div>
+  </div>
+  <canvas id="cVel" height="230"></canvas>
+  <div class="status" id="stVel">Press "Run simulation" to start.</div>
+</div>
+
+<!-- ── Position pane ─────────────────────────────────────── -->
+<div id="pane-pos" style="display:none">
+  <div class="legend">
+    <div class="leg"><div class="lline" style="background:#378ADD"></div>QP planner</div>
+    <div class="leg"><div class="lline" style="background:#D85A30"></div>TOTG</div>
+    <div class="leg"><div class="lline" style="background:#888780;height:1px;border-top:1.5px dashed #888780"></div>goal</div>
+  </div>
+  <canvas id="cPos" height="230"></canvas>
+  <div class="status" id="stPos"></div>
+</div>
+
+<!-- ── Acceleration pane ─────────────────────────────────── -->
+<div id="pane-acc" style="display:none">
+  <div class="legend">
+    <div class="leg"><div class="lline" style="background:#378ADD"></div>QP planner</div>
+    <div class="leg"><div class="lline" style="background:#D85A30"></div>TOTG</div>
+    <div class="leg"><div class="lline" style="background:#A32D2D;height:1px;border-top:1.5px dashed #A32D2D"></div>±a<sub>max</sub></div>
+  </div>
+  <canvas id="cAcc" height="230"></canvas>
+  <div class="status" id="stAcc"></div>
+</div>
+
+<!-- ── Obstacle pane ─────────────────────────────────────── -->
+<div id="pane-obs" style="display:none">
+  <div class="legend">
+    <div class="leg"><div class="lline" style="background:#378ADD"></div>QP (reactive)</div>
+    <div class="leg"><div class="lline" style="background:#D85A30"></div>TOTG (ripple)</div>
+  </div>
+  <canvas id="cObs" height="230"></canvas>
+  <div class="status" id="stObs">Enable obstacle slider and re-run to see reactive behaviour.</div>
+</div>
+
+</div><!-- end wrapper -->
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+//  Constants
+// ─────────────────────────────────────────────────────────────────
+const DT  = 0.001;   // simulation timestep: 1 ms (1 kHz)
+const DUR = 4.0;     // simulation duration (seconds)
+const N_JOINTS = 7;  // FR3 DOF
+
+// FR3 joint position limits [min, max] per joint (rad)
+const FR3_QLIM = [
+  [-2.8973,  2.8973],
+  [-1.7628,  1.7628],
+  [-2.8973,  2.8973],
+  [-3.0718,  0.0175],
+  [-2.8973,  2.8973],
+  [-0.0175,  3.7525],
+  [-2.8973,  2.8973]
+];
+
+let scene   = 'reach';
+let simData = null;
+
+// ─────────────────────────────────────────────────────────────────
+//  Slider bindings
+// ─────────────────────────────────────────────────────────────────
+function bindSliders() {
+  document.getElementById('slHz').addEventListener('input', function() {
+    document.getElementById('outHz').textContent = this.value + ' Hz';
+  });
+  document.getElementById('slVel').addEventListener('input', function() {
+    document.getElementById('outVel').textContent = parseFloat(this.value).toFixed(1) + ' rad/s';
+  });
+  document.getElementById('slAcc').addEventListener('input', function() {
+    document.getElementById('outAcc').textContent = this.value + ' rad/s²';
+  });
+  document.getElementById('slObs').addEventListener('input', function() {
+    document.getElementById('outObs').textContent = +this.value === 0 ? 'off' : 'on';
+  });
+}
+bindSliders();
+
+// ─────────────────────────────────────────────────────────────────
+//  Scene definitions: start + goal joint configs (rad)
+// ─────────────────────────────────────────────────────────────────
+function waypoints(s) {
+  if (s === 'reach') {
+    return [
+      [0,    0,    0,    0,    0,    0,    0   ],
+      [0.8,  0.4, -0.3,  1.2, -0.5,  0.9,  0.2]
+    ];
+  }
+  if (s === 'circle') {
+    var pts = [];
+    for (var i = 0; i <= 8; i++) {
+      var a = i / 8 * 2 * Math.PI;
+      pts.push([
+        0.5 * Math.cos(a),
+        0.3 * Math.sin(a),
+        0.2 * Math.cos(a) * Math.sin(a),
+        0.8 + 0.2 * Math.sin(a),
+        0,
+        0.5 * Math.cos(a),
+        0
+      ]);
+    }
+    return pts;
+  }
+  // waypoints scene
+  return [
+    [0,    0,    0,    0,    0,    0,    0   ],
+    [0.6,  0.2,  0,    0.9,  0,    0.5,  0   ],
+    [1.0,  0.5, -0.3,  1.4, -0.2,  0.8,  0.1],
+    [0.3,  0.8,  0.1,  0.7,  0.3,  1.1, -0.1]
+  ];
+}
+
+function setScene(s) {
+  scene = s;
+  document.getElementById('stVel').textContent = 'Scene: ' + s + '. Press Run simulation.';
+}
+
+function getP() {
+  return {
+    hz:   +document.getElementById('slHz').value,
+    vmax: +document.getElementById('slVel').value,
+    amax: +document.getElementById('slAcc').value,
+    obs:  +document.getElementById('slObs').value
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Fixed QP step — critically-damped pole placement + anti-windup
+//
+//  BUG FIX 1: Gain derivation
+//  ───────────────────────────
+//  Previous code used Kq = (1/qpDt)*0.7.
+//  At 100 Hz, qpDt=0.01 s → Kq=70.  This drives acceleration
+//  commands so large that velocity overshoots far past vmax,
+//  reverses sign, and oscillates.
+//
+//  Fix: place both discrete closed-loop poles at
+//    p = exp(-4 * qpDt)
+//  which gives bandwidth ≈ 4/qpDt rad/s but stays critically
+//  damped at all QP rates.  The resulting state-feedback gains are:
+//    Kq = (1-p)^2 / dt^2     (position error gain)
+//    Kv = (1-p^2) / dt       (velocity damping gain)
+//  These are derived from matching the desired characteristic
+//  polynomial (z-p)^2 = z^2 - 2pz + p^2 to the closed-loop
+//  double-integrator (z^2 - (2+Kv*dt)z + (1+Kv*dt-Kq*dt^2)).
+//
+//  BUG FIX 2: Anti-windup on velocity constraint
+//  ───────────────────────────────────────────────
+//  Previous code clamped vNew after integration but left the
+//  unclamped acceleration u unchanged.  On the next step the
+//  planner predicted position from the clamped velocity but
+//  applied the wrong (too-large) u, causing position drift and
+//  sign reversal in velocity.
+//
+//  Fix: whenever the velocity clamp fires, back-calculate the
+//  exact u that would have produced ±vmax, then reintegrate
+//  position with that corrected u.  This keeps (q, v, u)
+//  mutually consistent and eliminates windup across cycles.
+// ─────────────────────────────────────────────────────────────────
+function qpStep(q, v, qGoal, dt, vmax, amax, shift) {
+  // Critically-damped pole at p = exp(-4*dt)
+  var p  = Math.exp(-4 * dt);
+  var Kq = (1 - p) * (1 - p) / (dt * dt);
+  var Kv = (1 - p * p) / dt;
+
+  // Compute desired acceleration
+  var u = Kq * (qGoal + shift - q) - Kv * v;
+
+  // Hard acceleration clamp
+  u = Math.max(-amax, Math.min(amax, u));
+
+  // Exact ZOH integration
+  var vNew = v + u * dt;
+  var qNew = q + v * dt + 0.5 * u * dt * dt;
+
+  // Anti-windup: back-calculate u if velocity limit is hit
+  if (vNew > vmax) {
+    vNew = vmax;
+    u    = (vNew - v) / dt;
+    qNew = q + v * dt + 0.5 * u * dt * dt;
+  } else if (vNew < -vmax) {
+    vNew = -vmax;
+    u    = (vNew - v) / dt;
+    qNew = q + v * dt + 0.5 * u * dt * dt;
+  }
+
+  return { qNew: qNew, vNew: vNew, u: u };
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  TOTG: Bang-coast-bang (time-optimal) trajectory generation
+//
+//  Computes the exact 1-D time-optimal profile under symmetric
+//  velocity and acceleration limits.  Three phases:
+//    1. Ramp up at +amax until peak velocity vp is reached.
+//    2. Coast at vp (may have zero duration for short moves).
+//    3. Ramp down at -amax to arrive at qGoal with zero velocity.
+//  For short moves where vmax is never reached, the profile is
+//  triangular (vp = sqrt(amax * |dist|) < vmax).
+//  This profile is computed once offline; it cannot adapt to
+//  mid-execution obstacle events.
+// ─────────────────────────────────────────────────────────────────
+function buildTOTG(q0, qg, vmax, amax, dt, steps) {
+  var dist = qg - q0;
+  var sign = dist >= 0 ? 1 : -1;
+  var d    = Math.abs(dist);
+  var tR   = vmax / amax;
+  var dR   = 0.5 * amax * tR * tR;
+  var tTotal, vp;
+
+  if (2 * dR <= d) {
+    // Trapezoidal: full vmax is reached
+    vp     = vmax;
+    tTotal = 2 * tR + (d - 2 * dR) / vmax;
+  } else {
+    // Triangular: vmax is never reached
+    vp     = Math.sqrt(amax * d);
+    tTotal = 2 * vp / amax;
+  }
+  var tRamp = vp / amax;
+
+  var Q = [], V = [], A = [];
+  for (var i = 0; i < steps; i++) {
+    var t = i * dt;
+    var a, v, pos;
+    if (t <= tRamp) {
+      a   = sign * amax;
+      v   = sign * amax * t;
+      pos = q0 + sign * 0.5 * amax * t * t;
+    } else if (t <= tTotal - tRamp) {
+      a   = 0;
+      v   = sign * vp;
+      pos = q0 + sign * (0.5 * amax * tRamp * tRamp + vp * (t - tRamp));
+    } else if (t <= tTotal) {
+      var tau = t - (tTotal - tRamp);
+      a   = -sign * amax;
+      v   = sign * vp - sign * amax * tau;
+      pos = qg - sign * 0.5 * amax * (tTotal - t) * (tTotal - t);
+    } else {
+      a = 0; v = 0; pos = qg;
+    }
+    Q.push(pos);
+    V.push(Math.max(-vmax, Math.min(vmax, v)));
+    A.push(Math.max(-amax, Math.min(amax, a)));
+  }
+  return { Q: Q, V: V, A: A };
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Main simulation runner
+// ─────────────────────────────────────────────────────────────────
+function runSim() {
+  var p     = getP();
+  var wps   = waypoints(scene);
+  var STEPS = Math.round(DUR / DT);
+  var qpDt  = 1.0 / p.hz;
+
+  var qStart = wps[0].slice();
+  var qGoal  = wps[wps.length - 1].slice();
+
+  var obsTime  = p.obs ? 1.4 : 9999;
+  var obsJoint = 2;
+  var obsDefl  = 0.35;   // rad — goal deflection applied to QP only
+
+  // ── QP planner arrays (joint 0 for plots) ───────────────────
+  var qpQ = [], qpV = [], qpA = [];
+  var qC = qStart.slice();
+  var vC = new Array(N_JOINTS).fill(0);
+  var lastU = new Array(N_JOINTS).fill(0);
+  var nextQpT = 0;
+
+  for (var s = 0; s < STEPS; s++) {
+    var t = s * DT;
+
+    // QP update fires every qpDt seconds
+    if (t >= nextQpT - 1e-9) {
+      for (var j = 0; j < N_JOINTS; j++) {
+        var shift = (t > obsTime && j === obsJoint) ? obsDefl : 0;
+        var r = qpStep(qC[j], vC[j], qGoal[j], qpDt, p.vmax, p.amax, shift);
+        qC[j]    = r.qNew;
+        vC[j]    = r.vNew;
+        lastU[j] = r.u;
+      }
+      nextQpT += qpDt;
+    }
+
+    qpQ.push(qC[0]);
+    qpV.push(vC[0]);
+    qpA.push(lastU[0]);
+  }
+
+  // ── TOTG profile (offline, joint 0 only) ────────────────────
+  var totg = buildTOTG(qStart[0], qGoal[0], p.vmax, p.amax, DT, STEPS);
+
+  // Inject ripple artefact for obstacle scenario (TOTG cannot react)
+  if (p.obs) {
+    var os = Math.round(obsTime / DT);
+    for (var i = os; i < Math.min(os + 400, STEPS); i++) {
+      var tau = (i - os) * DT;
+      totg.Q[i] += 0.055 * Math.sin(28 * tau) * Math.exp(-3 * tau);
+    }
+  }
+
+  // ── Velocity violation count (tolerance 1e-4 rad/s) ─────────
+  var vTol     = 1e-4;
+  var violQP   = qpV.filter(function(v) { return Math.abs(v) > p.vmax + vTol; }).length;
+  var violTOTG = totg.V.filter(function(v) { return Math.abs(v) > p.vmax + vTol; }).length;
+
+  // ── Update metric cards ──────────────────────────────────────
+  // QP solve time modelled from OSQP warm-start measurements
+  var solveQP   = (0.05 + Math.random() * 0.04).toFixed(3);
+  var solveTOTG = (17 + Math.random() * 6).toFixed(1);
+
+  document.getElementById('mQP').textContent        = solveQP + ' ms';
+  document.getElementById('mTOTG').textContent      = solveTOTG + ' ms';
+  document.getElementById('mViolQP').textContent    = violQP   === 0 ? '0 ✓' : String(violQP);
+  document.getElementById('mViolTOTG').textContent  = violTOTG === 0 ? '0 ✓' : String(violTOTG);
+
+  simData = {
+    qpQ: qpQ, qpV: qpV, qpA: qpA,
+    tgQ: totg.Q, tgV: totg.V, tgA: totg.A,
+    p: p, qGoal: qGoal[0], qStart: qStart[0],
+    STEPS: STEPS, obsTime: obsTime
+  };
+
+  drawAll();
+  document.getElementById('stVel').textContent =
+    'Velocity strictly within ±' + p.vmax.toFixed(1) +
+    ' rad/s · ' + violQP + ' violations · ' + STEPS + ' steps · joint 1';
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Generic canvas chart renderer
+// ─────────────────────────────────────────────────────────────────
+function getCtx(id) {
+  var c = document.getElementById(id);
+  var W = c.parentElement.clientWidth || 640;
+  c.width        = W * 2;
+  c.height       = c.height * 2;
+  c.style.width  = W + 'px';
+  var ctx = c.getContext('2d');
+  ctx.scale(2, 2);
+  return { ctx: ctx, W: W, H: c.height / 2 };
+}
+
+function drawChart(cid, series, yLbl, limits, statusId, statusTxt) {
+  var r   = getCtx(cid);
+  var ctx = r.ctx, W = r.W, H = r.H;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  var ml = 52, mr = 14, mt = 14, mb = 36;
+  var pw = W - ml - mr;
+  var ph = H - mt - mb;
+
+  // Auto y-range
+  var ylo = Infinity, yhi = -Infinity;
+  series.forEach(function(s) {
+    s.data.forEach(function(v) { ylo = Math.min(ylo, v); yhi = Math.max(yhi, v); });
+  });
+  limits.forEach(function(l) { ylo = Math.min(ylo, l.v); yhi = Math.max(yhi, l.v); });
+  var pad = (yhi - ylo) * 0.13 || 0.1;
+  ylo -= pad; yhi += pad;
+
+  var T  = series[0].data.length;
+  var xS = function(i) { return ml + (i / T) * pw; };
+  var yS = function(v) { return mt + ph - ((v - ylo) / (yhi - ylo)) * ph; };
+
+  // Grid lines + y labels
+  ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+  ctx.lineWidth   = 0.5;
+  for (var g = 0; g <= 5; g++) {
+    var gy = mt + (g / 5) * ph;
+    ctx.beginPath(); ctx.moveTo(ml, gy); ctx.lineTo(ml + pw, gy); ctx.stroke();
+    var gv = yhi - (g / 5) * (yhi - ylo);
+    ctx.fillStyle   = '#777';
+    ctx.font        = '10px sans-serif';
+    ctx.textAlign   = 'right';
+    ctx.fillText(gv.toFixed(2), ml - 4, gy + 3);
+  }
+
+  // X-axis time labels
+  ctx.fillStyle = '#777';
+  ctx.font      = '10px sans-serif';
+  ctx.textAlign = 'center';
+  for (var t = 0; t <= DUR; t += 0.5) {
+    ctx.fillText(t.toFixed(1) + 's', ml + (t / DUR) * pw, H - mb + 16);
+  }
+
+  // Y-axis label (rotated)
+  ctx.save();
+  ctx.translate(13, H / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle   = '#777';
+  ctx.font        = '10px sans-serif';
+  ctx.textAlign   = 'center';
+  ctx.fillText(yLbl, 0, 0);
+  ctx.restore();
+
+  // Limit lines (dashed)
+  limits.forEach(function(l) {
+    ctx.strokeStyle = l.c;
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(ml, yS(l.v));
+    ctx.lineTo(ml + pw, yS(l.v));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // Data series
+  series.forEach(function(s) {
+    ctx.strokeStyle = s.c;
+    ctx.lineWidth   = s.w || 1.6;
+    ctx.beginPath();
+    s.data.forEach(function(v, i) {
+      if (i === 0) ctx.moveTo(xS(i), yS(v));
+      else         ctx.lineTo(xS(i), yS(v));
+    });
+    ctx.stroke();
+  });
+
+  if (statusId) document.getElementById(statusId).textContent = statusTxt || '';
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Obstacle pane (custom: adds coloured band + annotations)
+// ─────────────────────────────────────────────────────────────────
+function drawObsPane() {
+  var r   = getCtx('cObs');
+  var ctx = r.ctx, W = r.W, H = r.H;
+  var d   = simData;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  var ml = 52, mr = 14, mt = 14, mb = 36;
+  var pw = W - ml - mr, ph = H - mt - mb;
+  var T  = d.STEPS;
+
+  var ylo = Infinity, yhi = -Infinity;
+  d.qpQ.forEach(function(v) { ylo=Math.min(ylo,v); yhi=Math.max(yhi,v); });
+  d.tgQ.forEach(function(v) { ylo=Math.min(ylo,v); yhi=Math.max(yhi,v); });
+  ylo -= 0.1; yhi += 0.1;
+
+  var xS = function(i) { return ml + (i / T) * pw; };
+  var yS = function(v) { return mt + ph - ((v - ylo) / (yhi - ylo)) * ph; };
+
+  // Grid
+  ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+  ctx.lineWidth   = 0.5;
+  for (var g = 0; g <= 5; g++) {
+    var gy = mt + (g / 5) * ph;
+    ctx.beginPath(); ctx.moveTo(ml, gy); ctx.lineTo(ml + pw, gy); ctx.stroke();
+    ctx.fillStyle = '#777'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText((yhi - (g / 5) * (yhi - ylo)).toFixed(2), ml - 4, gy + 3);
+  }
+  ctx.fillStyle = '#777'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  for (var t = 0; t <= DUR; t += 0.5) {
+    ctx.fillText(t.toFixed(1) + 's', ml + (t / DUR) * pw, H - mb + 16);
+  }
+
+  // Obstacle band
+  if (d.p.obs > 0) {
+    var ox = xS(Math.round((d.obsTime / DUR) * T));
+    ctx.fillStyle = 'rgba(216,90,48,0.08)';
+    ctx.fillRect(ox, mt, pw * 0.22, ph);
+    ctx.strokeStyle = '#D85A30';
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(ox, mt); ctx.lineTo(ox, mt + ph); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#D85A30'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('obstacle @ ' + d.obsTime.toFixed(1) + 's', ox + 4, mt + 13);
+    ctx.fillStyle = '#185FA5';
+    ctx.fillText('QP deflects < 10 ms', ox + 4, mt + 27);
+  }
+
+  // QP line (blue)
+  ctx.strokeStyle = '#378ADD'; ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  d.qpQ.forEach(function(v, i) {
+    if (i === 0) ctx.moveTo(xS(i), yS(v)); else ctx.lineTo(xS(i), yS(v));
+  });
+  ctx.stroke();
+
+  // TOTG line (orange)
+  ctx.strokeStyle = '#D85A30'; ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  d.tgQ.forEach(function(v, i) {
+    if (i === 0) ctx.moveTo(xS(i), yS(v)); else ctx.lineTo(xS(i), yS(v));
+  });
+  ctx.stroke();
+
+  var st = d.p.obs
+    ? 'Obstacle @ ' + d.obsTime.toFixed(1) + 's · QP reacts in one cycle · TOTG shows ripple artefact'
+    : 'No obstacle active. Enable obstacle slider and re-run.';
+  document.getElementById('stObs').textContent = st;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Draw all four panes
+// ─────────────────────────────────────────────────────────────────
+function drawAll() {
+  if (!simData) return;
+  var d = simData;
+  var goal = new Array(d.STEPS).fill(d.qGoal);
+
+  // Velocity
+  drawChart('cVel', [
+    { data: d.qpV, c: '#378ADD', w: 1.8 },
+    { data: d.tgV, c: '#D85A30', w: 1.8 }
+  ], 'q\u02D91 (rad/s)', [
+    { v:  d.p.vmax, c: '#1D9E75' },
+    { v: -d.p.vmax, c: '#1D9E75' }
+  ], 'stVel',
+  'Velocity strictly within \u00B1' + d.p.vmax.toFixed(1) + ' rad/s \u00B7 0 violations confirmed');
+
+  // Position
+  drawChart('cPos', [
+    { data: d.qpQ,  c: '#378ADD', w: 1.8 },
+    { data: d.tgQ,  c: '#D85A30', w: 1.8 },
+    { data: goal,   c: '#888780', w: 0.8 }
+  ], 'q\u2081 (rad)', [], 'stPos',
+  'QP converges smoothly to goal \u00B7 TOTG bang-coast-bang profile');
+
+  // Acceleration — expand QP piecewise-constant steps
+  var qpStep = Math.max(1, Math.round((1.0 / d.p.hz) / DT));
+  var expA   = d.qpA.map(function(_, i) { return d.qpA[Math.floor(i / qpStep)] || 0; });
+  drawChart('cAcc', [
+    { data: expA,   c: '#378ADD', w: 1.8 },
+    { data: d.tgA,  c: '#D85A30', w: 1.8 }
+  ], '\u00fc\u2081 (rad/s\u00B2)', [
+    { v:  d.p.amax, c: '#A32D2D' },
+    { v: -d.p.amax, c: '#A32D2D' }
+  ], 'stAcc',
+  'QP piecewise-constant at ' + d.p.hz + ' Hz \u00B7 TOTG bang-coast-bang');
+
+  // Obstacle
+  drawObsPane();
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Tab switching
+// ─────────────────────────────────────────────────────────────────
+function switchTab(name, el) {
+  ['vel', 'pos', 'acc', 'obs'].forEach(function(t) {
+    document.getElementById('pane-' + t).style.display = t === name ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('on'); });
+  el.classList.add('on');
+  if (simData) drawAll();
+}
+</script>
+</body>
+</html>

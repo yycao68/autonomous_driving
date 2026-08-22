@@ -1,0 +1,88 @@
+\documentclass[journal]{IEEEtran}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{calc}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{cite}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds}
+
+\graphicspath{{../}}
+
+% ---- shared tikz styles for the architecture schematic ----
+\tikzset{
+  blk/.style={draw,rounded corners=2pt,align=center,font=\footnotesize,
+              minimum height=8mm,inner sep=3pt,fill=blue!4},
+  det/.style={draw,rounded corners=2pt,align=center,font=\footnotesize,
+              minimum height=8mm,inner sep=3pt,fill=orange!10},
+  offb/.style={draw,dashed,rounded corners=2pt,align=center,font=\footnotesize,
+              minimum height=8mm,inner sep=3pt,fill=green!6},
+  sig/.style={-{Latex[length=2mm]},line width=0.6pt},
+  dot/.style={circle,fill,inner sep=1.1pt}
+}
+
+% shrink a display equation to the column width only if it would otherwise overflow
+\newcommand{\eqfit}[1]{\resizebox{\ifdim\width>\columnwidth \columnwidth\else \width\fi}{!}{\ensuremath{\displaystyle #1}}}
+
+\providecommand{\texorpdfstring}[2]{#1}
+\DeclareUnicodeCharacter{2248}{\ensuremath{\approx}}
+\DeclareUnicodeCharacter{2022}{\textbullet}
+
+\newcounter{none}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{%
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi%
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+\def\fps@figure{tbp}
+\makeatother
+
+\setlength{\emergencystretch}{3em}
+
+\begin{document}
+
+\title{Reactive Time-Domain Motion Planning via a Configuration-Independent Double-Integrator Backbone}
+
+\author{Yongyan~Cao%
+\thanks{Y. Cao is with Voryx Robotics LLC, San Jose, CA 95110 USA
+(e-mail: yongyancao@gmail.com).}}
+
+\maketitle
+
+\begin{abstract}
+Traditional motion-planning pipelines separate geometric path generation from time parameterization, making reactive 
+updates costly when obstacles or task objectives change. This paper presents a unified local Predictive Motion Planner 
+formulated directly in the time domain. The key observation is architectural: by planning on a virtual double-integrator 
+backbone rather than on a plant linearization, the state-transition matrix $A_d$ stays constant across configurations, 
+where a configuration-dependent MPC would have to rebuild its prediction matrices at every cycle. All prediction matrices 
+can therefore be precomputed offline, and online planning reduces to a convex Quadratic Program (QP) with fixed dynamics 
+structure.
+
+The planner optimizes time-indexed joint trajectories on a fixed planning grid while enforcing velocity, acceleration, and linearized workspace-obstacle constraints. It produces continuous position/velocity profiles $(q_d,\dot q_d)$ with hard-bounded, piecewise-constant acceleration $\ddot q_d$, and supports a piecewise-jerk triple-integrator extension when continuous acceleration is required. Benchmarks on FR3 manipulation show bounded-latency reactive replanning without the stop-and-rebuild behavior of path-first pipelines, and an illustrative autonomous-vehicle steering example shows the same principle applied to steering-rate smoothness. In the single-thread Python harness, decoupled box-constrained QPs solve well within the 100 Hz budget and coupled obstacle rows meet it at p95 with fixed-sparsity updates, though worst-case cycles can exceed 10 ms; these timings are diagnostics rather than a real-time guarantee.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Motion planning, model predictive control, reactive replanning, real-time trajectory generation, double integrator, 
+obstacle avoidance, time parameterization.
+\end{IEEEkeywords}
+
+\input{body}
+\input{references}
+
+\end{document}
