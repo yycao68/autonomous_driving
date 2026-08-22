@@ -1,0 +1,100 @@
+% ICRA 2027 submission wrapper — Chinese translation of mp_main_ICRA.tex.
+% Content is a faithful full-fidelity translation of body_icra.tex, kept in
+% body_icra_zh.tex; the 8-page ICRA limit does NOT apply to this version.
+% references_icra.tex (English) is shared unchanged, per the convention
+% established for wbc_v5_zh.tex.
+% Build: xelatex mp_main_ICRA_zh.tex (run twice for cross-references)
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{calc}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{cite}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds}
+\usepackage{xeCJK}
+\setCJKmainfont{Heiti SC}
+
+\graphicspath{{../}}
+
+% ---- shared tikz styles for the architecture schematic ----
+\tikzset{
+  blk/.style={draw,rounded corners=2pt,align=center,font=\footnotesize,
+              minimum height=8mm,inner sep=3pt,fill=blue!4},
+  det/.style={draw,rounded corners=2pt,align=center,font=\footnotesize,
+              minimum height=8mm,inner sep=3pt,fill=orange!10},
+  offb/.style={draw,dashed,rounded corners=2pt,align=center,font=\footnotesize,
+              minimum height=8mm,inner sep=3pt,fill=green!6},
+  sig/.style={-{Latex[length=2mm]},line width=0.6pt},
+  dot/.style={circle,fill,inner sep=1.1pt}
+}
+
+% shrink a display equation to the column width only if it would otherwise overflow
+\newcommand{\eqfit}[1]{\resizebox{\ifdim\width>\columnwidth \columnwidth\else \width\fi}{!}{\ensuremath{\displaystyle #1}}}
+
+\providecommand{\texorpdfstring}[2]{#1}
+\makeatletter
+\@ifundefined{DeclareUnicodeCharacter}{}{%
+  \DeclareUnicodeCharacter{2248}{\ensuremath{\approx}}
+  \DeclareUnicodeCharacter{2022}{\textbullet}
+}
+\makeatother
+
+\newcounter{none}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{%
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi%
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+\def\fps@figure{tbp}
+\makeatother
+
+\setlength{\emergencystretch}{3em}
+
+\begin{document}
+
+\title{通过构型无关的双重积分器骨架实现反应式时域运动规划\\[2pt]\large（中文译本）}
+
+% Double-anonymous review: author information omitted (ICRA 2027 rules).
+\author{Anonymous~Authors%
+\thanks{本文为英文原稿的中文译本，内容以英文原稿为准。原稿提交用于双盲评审；为保持匿名，译本同样不附带作者身份信息。}%
+}
+
+\maketitle
+% PaperPlaza compliance: no page numbers (header digits trip the
+% margin-imposition check; the submission system adds its own numbering).
+\thispagestyle{empty}
+\pagestyle{empty}
+
+\begin{abstract}
+传统的运动规划流水线将几何路径生成与时间参数化相分离，这使得在障碍物或任务目标发生变化时，反应式更新的代价很高。本文提出一个统一的、直接在时域中构建的局部预测运动规划器。其关键观察是架构性的：通过在一个虚拟的双重积分器骨架上进行规划，而不是在一个被控对象线性化模型上进行规划，状态转移矩阵 $A_d$ 在各个构型下保持恒定，而一个构型相关的 MPC 则必须在每个周期重建其预测矩阵。因此，所有预测矩阵都可以离线预先计算，在线规划由此简化为一个动力学结构固定的凸二次规划（QP）。
+
+该规划器在一个固定的规划网格上优化时间索引的关节轨迹，同时施加速度、加速度与线性化工作空间障碍物约束。它生成连续的位置/速度剖面 $(q_d,\dot q_d)$，其加速度 $\ddot q_d$ 硬约束且分段常值，并支持在需要连续加速度时扩展为分段加加速度的三重积分器形式。在 FR3 机械臂上的基准测试表明，该方法能够实现有界延迟的反应式重规划，而无需像路径优先流水线那样“停止—重建”；一个示例性的自动驾驶车辆转向场景则展示了同一原理在转向速率平滑性上的应用。在单线程 Python 测试框架中，解耦的箱约束 QP 求解时间远在 100 Hz 预算之内，耦合的障碍物约束 QP 在采用固定稀疏结构更新时也能在 p95 意义上满足该预算，尽管最差情形周期可能超过 10 ms；这些计时结果是诊断性数据，而不是一个实时性保证。
+\end{abstract}
+
+\begin{IEEEkeywords}
+运动规划、模型预测控制、反应式重规划、实时轨迹生成、双重积分器、
+障碍物规避、时间参数化。
+\end{IEEEkeywords}
+
+\input{body_icra_zh}
+\input{references_icra}
+
+\end{document}
