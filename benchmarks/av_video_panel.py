@@ -31,6 +31,8 @@ from benchmark_av import (av_double_lane_change, steering, V_CRUISE, V_MAX, A_MA
 from di_lateral import plan_lateral_jerk
 from di_totg import plan_totg
 
+RESULTS_DIR = Path(__file__).parent.parent / "simulationResults"
+
 SCENE_W, H = 1280, 720
 PANEL_W    = 600
 DT         = 0.05
@@ -356,7 +358,7 @@ def make_video(out=None, fps=FPS):
     t_max = max(di_log["finish"], tg_log["finish"]) + 0.4
     t_grid = np.arange(0.0, t_max, DT)
 
-    out = out or str(Path(__file__).parent / "av_video_panel.mp4")
+    out = out or str(RESULTS_DIR / "av_video_panel.mp4")
     writer = imageio.get_writer(out, fps=fps, codec="libx264", quality=8,
                                 macro_block_size=8)
     for t in t_grid:

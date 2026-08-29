@@ -75,8 +75,11 @@ def plan_lateral_jerk(wps, V, dt=0.05, N=30,
         y_goal = ys[idx]
 
         ep = Phi_p @ z - y_goal
-        q = Gp.T @ (Wq * ep)
         v_free = Phi_v @ z; a_free = Phi_a @ z
+        # acceleration term penalizes total predicted accel a_free + Ga@U, not
+        # just the control-induced increment -- its free-response part must
+        # appear here to match the wa*Ga.T@Ga block already in H.
+        q = Gp.T @ (Wq * ep) + wa * (Ga.T @ a_free)
         l = np.concatenate([-vy_max - v_free, -a_lat_max - a_free,
                             -j_max * np.ones(N)])
         u = np.concatenate([vy_max - v_free, a_lat_max - a_free,

@@ -15,6 +15,8 @@ from di_totg import plan_totg
 from benchmark_av import (steering, av_double_lane_change, av_intersection_turn,
                           V_MAX, A_MAX, V_CRUISE)
 
+RESULTS_DIR = Path(__file__).parent.parent / "simulationResults"
+
 
 def main():
     import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
@@ -56,7 +58,7 @@ def main():
     fig.suptitle('AV steering: jerk-bounded DI is smooth & bounded; TOTG steps at '
                  'blend seams (a sampled discontinuity)', fontsize=12)
     fig.tight_layout(rect=[0, 0, 1, 0.96])
-    out = Path(__file__).with_name("av_steering_compare.png")
+    out = RESULTS_DIR / "av_steering_compare.png"
     fig.savefig(out, dpi=120)
     print(f"saved {out}")
 

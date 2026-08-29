@@ -260,7 +260,7 @@ B_d^{(3)} =
 
 \section{实验评估}\label{vi.-experimental-evaluation}
 
-我们在一台 7 自由度的 Franka FR3 机械臂上以及一个自动驾驶车辆转向任务上，将所提出的规划器与一条路径优先的时间最优轨迹生成流水线进行对比。两种规划器接收相同的路径点与运动学限制，并以相同的 \(\Delta t\) 采样发出 \((q_d, \dot q_d, \ddot q_d)\)；下文报告的所有数据均由随附的开源测试框架（\texttt{benchmarks/}）实测得到。TOTG 参考实现采用基于数值积分的 TOPP 核心——圆弧过渡路径（Kunz--Stilman 几何 \cite{kunz2012}），在 \(\dot s^2\) 上做时间最优的正向/反向扫描 \cite{toppra}，随后进行 \(s\!\to\!t\) 反演与重采样。
+我们在一台 7 自由度的 Franka FR3 机械臂上以及一个自动驾驶车辆转向任务上，将所提出的规划器与一条路径优先的时间最优轨迹生成流水线进行对比。两种规划器接收相同的路径点与运动学限制，并以相同的 \(\Delta t\) 采样发出 \((q_d, \dot q_d, \ddot q_d)\)；下文报告的所有数据均由随附的开源测试框架（\texttt{simulationResults/}）实测得到。TOTG 参考实现采用基于数值积分的 TOPP 核心——圆弧过渡路径（Kunz--Stilman 几何 \cite{kunz2012}），在 \(\dot s^2\) 上做时间最优的正向/反向扫描 \cite{toppra}，随后进行 \(s\!\to\!t\) 反演与重采样。
 
 \textbf{比较范围。} 我们将本方法与路径优先方法族（TOTG、TOPP-RA）、一个“解析速度律 + APF”基线，以及在平面动态障碍物测试（第~\ref{d.-bounded-latency-reactive-replanning}节）中的一个基于采样的 MPPI 基线进行了比较。在线非线性 MPC 与 CHOMP/TrajOpt 留待未来工作；本文所提规划器的吸引力恰恰在于其常值 \(A_d\) 预计算与有界的逐周期延迟，而这正是更丰富的非线性方法所放弃的东西。
 
@@ -336,7 +336,7 @@ B4 密集路径点（24 个路径点） & 13.24 & \textbf{3.83} & 1.000 & \textb
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{benchmarks/fr3_accel_compare.png}
+\includegraphics[width=\linewidth]{simulationResults/fr3_accel_compare.png}
 \caption{FR3 实际发出轨迹的加速度比
 \(\max_j|\ddot q_j|/\ddot q_{j,\max}\) 随时间变化，DI-QP（蓝色）对比 TOTG
 （红色），场景 B1--B4；虚线为限制值。DI-QP 由硬约束钉死在限制之内；TOTG 在过渡接缝处超出限制（B2 为 \(1.047\times\)，B3 最高达 \(3.13\times\)，B4 为 \(1.445\times\)）。B3 处的峰值与过渡段实现方式有关（在 TOPP-RA/\(C^2\) 下降至 \(1.00\times\)）；路径优先方法本质性的问题在于 \(\dot s\to0\) 奇异性与曲率不连续的重建，而不在于峰值大小本身。}
@@ -353,7 +353,7 @@ B4 密集路径点（24 个路径点） & 13.24 & \textbf{3.83} & 1.000 & \textb
 
 同一骨架可以扩展到将笛卡尔双重积分器 \(\ddot p=u\) 与转向/油门控制相分离的自动驾驶技术栈中，通过
 \(\theta=\operatorname{atan2}(\dot y,\dot x)\)、
-\(\kappa=(\dot x\ddot y-\dot y\ddot x)/(\dot x^2+\dot y^2)^{3/2}\) 恢复航向角与曲率。这只是一个初步的示例，而不是一个完整的自行车运动学模型规划器：在一个具有代表性的 0.5\,rad/s 转向速率上限的变道机动中，加加速度受约束的时间优先扩展方法始终保持在该上限之内（峰值速率 0.129\,rad/s），而路径优先指令在双移线动作中超出了该上限（0.594\,rad/s），原因是圆弧过渡曲率在路径接缝处发生阶跃；完整的自行车模型处理留待未来工作。
+\(\kappa=(\dot x\ddot y-\dot y\ddot x)/(\dot x^2+\dot y^2)^{3/2}\) 恢复航向角与曲率。这只是一个初步的示例，而不是一个完整的自行车运动学模型规划器：在一个具有代表性的 0.5\,rad/s 转向速率上限的变道机动中，加加速度受约束的时间优先扩展方法始终保持在该上限之内（峰值速率 0.130\,rad/s），而路径优先指令在双移线动作中超出了该上限（0.594\,rad/s），原因是圆弧过渡曲率在路径接缝处发生阶跃；完整的自行车模型处理留待未来工作。
 
 \subsection{有界延迟的反应式重规划}\label{d.-bounded-latency-reactive-replanning}
 
@@ -395,7 +395,7 @@ B4 密集路径点（24 个路径点） & 13.24 & \textbf{3.83} & 1.000 & \textb
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{benchmarks/fr3_dynamic.png}
+\includegraphics[width=\linewidth]{simulationResults/fr3_dynamic.png}
 \caption{7 自由度 FR3 动态障碍物场景。左上：DI-QP
 关节速度，全部保持在限制之内。右上：解析速度率+APF
 基线，超出了速度限制。左下：末端执行器

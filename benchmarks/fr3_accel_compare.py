@@ -12,6 +12,8 @@ from di_totg import plan_totg
 from benchmark_fr3 import (b1_point_to_point, b2_acute_corner, b3_near_reversal,
                            b4_dense_noisy)
 
+RESULTS_DIR = Path(__file__).parent.parent / "simulationResults"
+
 
 def ratio(res, amax):
     return (np.abs(res["A"]) / amax).max(axis=1)
@@ -41,7 +43,7 @@ def main():
                  'the limit (hard constraint); TOTG exceeds it (red = violation)',
                  fontsize=12)
     fig.tight_layout(rect=[0, 0, 1, 0.96])
-    out = Path(__file__).with_name("fr3_accel_compare.png")
+    out = RESULTS_DIR / "fr3_accel_compare.png"
     fig.savefig(out, dpi=120)
     print(f"saved {out}")
 

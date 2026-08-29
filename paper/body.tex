@@ -548,7 +548,7 @@ Trajectory Generation pipeline on a 7-DOF Franka FR3 manipulator and on
 an autonomous-vehicle steering task. Both planners receive identical
 waypoints and kinematic limits and emit \((q_d, \dot q_d, \ddot q_d)\)
 sampled at the same \(\Delta t\); all numbers reported below are
-measured by the accompanying open harness (\texttt{benchmarks/}). The
+measured by the accompanying open harness (\texttt{simulationResults/}). The
 TOTG reference uses the numerical-integration TOPP core---circular-blend
 path (Kunz--Stilman geometry \cite{kunz2012}), time-optimal forward/backward
 sweep on \(\dot s^2\) \cite{toppra}, then \(s\!\to\!t\) inversion and
@@ -594,7 +594,7 @@ toward zero at the tight blend---severely on the near-reversal, where
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{benchmarks/topp_phaseplane.png}
+\includegraphics[width=\linewidth]{simulationResults/topp_phaseplane.png}
 \caption{Time-optimal path parameterization in the
 \((s,\dot s)\) phase plane (TOPP-RA style). The optimal profile dips at
 the tight blend and---on the near-reversal---plunges to
@@ -695,7 +695,7 @@ spikes above it at blend seams.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{benchmarks/fr3_accel_compare.png}
+\includegraphics[width=\linewidth]{simulationResults/fr3_accel_compare.png}
 \caption{FR3 emitted-trajectory acceleration ratio
 \(\max_j|\ddot q_j|/\ddot q_{j,\max}\) over time, DI-QP (blue) vs TOTG
 (red), B1--B4; dashed line is the limit. DI-QP is pinned within the limit
@@ -831,11 +831,11 @@ Steering jump {[}rad{]}
 Peak lateral accel {[}m/s²{]}
 \end{minipage} \\
 \midrule\noalign{}
-Single lane change & jerk-bounded time-first & 3.6 & \textbf{0.129} &
+Single lane change & jerk-bounded time-first & 3.6 & \textbf{0.130} &
 \textbf{0.0065} & 3.99 \\
 Single lane change & TOTG path-first & 1.5 & 0.254 & 0.0254 & 2.47 \\
-Double lane change & jerk-bounded time-first & 3.6 & \textbf{0.129} &
-\textbf{0.0065} & 4.00 \\
+Double lane change & jerk-bounded time-first & 3.6 & \textbf{0.130} &
+\textbf{0.0065} & 3.99 \\
 Double lane change & TOTG path-first & 3.4 & 0.594 & 0.0594 & 4.05 \\
 \bottomrule\noalign{}
 \end{tabular}
@@ -962,7 +962,7 @@ Worst cycle latency {[}ms{]} & \textbf{0.70} & 2.2 \\
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{benchmarks/dynamic_obstacle.png}
+\includegraphics[width=\linewidth]{simulationResults/dynamic_obstacle.png}
 \caption{Planar dynamic-obstacle test. Left: trajectories---DI-QP (solid)
 detours spatially, MPPI (dash-dot) avoids by \emph{timing} its passage,
 path-first (dashed) halts and rebuilds; gray disks are obstacle snapshots.
@@ -1020,7 +1020,7 @@ which we leave to implementation work.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{benchmarks/fr3_dynamic.png}
+\includegraphics[width=\linewidth]{simulationResults/fr3_dynamic.png}
 \caption{7-DOF FR3 dynamic obstacle. Top-left: DI-QP
 joint velocities, all within the limit. Top-right: resolved-rate+APF
 baseline, which exceeds the velocity limit. Bottom-left: end-effector

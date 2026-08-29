@@ -9,6 +9,8 @@ from pathlib import Path
 from fr3_dynamic_obstacle import run_qp, obstacle_pos, R_OBS
 from fr3_kinematics import fk
 
+RESULTS_DIR = Path(__file__).parent.parent / "simulationResults"
+
 XML = "/Users/yycao/Documents/git/ai_learn/pHRI/simulation/models/franka_fr3/fr3_lightscene.xml"
 NFRAMES = 6
 H, W = 460, 600
@@ -55,13 +57,14 @@ def main():
         print(f"  frame t={tt[fi]:.2f}s")
 
     strip = np.concatenate(frames, axis=1)
+    out = RESULTS_DIR / "fr3_motion.png"
     try:
         from PIL import Image
-        Image.fromarray(strip).save("fr3_motion.png")
+        Image.fromarray(strip).save(out)
+        print(f"saved {out}")
     except Exception:
         import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
         plt.figure(figsize=(NFRAMES * 2.4, 2.4)); plt.imshow(strip); plt.axis("off")
-        out = Path(__file__).with_name("fr3_motion.png")
         plt.tight_layout(); plt.savefig(out, dpi=130)
         print(f"saved {out}")
 

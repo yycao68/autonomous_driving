@@ -504,7 +504,7 @@ Trajectory Generation pipeline on a 7-DOF Franka FR3 manipulator and on
 an autonomous-vehicle steering task. Both planners receive identical
 waypoints and kinematic limits and emit \((q_d, \dot q_d, \ddot q_d)\)
 sampled at the same \(\Delta t\); all numbers reported below are
-measured by the accompanying open harness (\texttt{benchmarks/}). The
+measured by the accompanying open harness (\texttt{simulationResults/}). The
 TOTG reference uses the numerical-integration TOPP core---circular-blend
 path (Kunz--Stilman geometry \cite{kunz2012}), time-optimal forward/backward
 sweep on \(\dot s^2\) \cite{toppra}, then \(s\!\to\!t\) inversion and
@@ -641,7 +641,7 @@ spikes above it at blend seams.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{benchmarks/fr3_accel_compare.png}
+\includegraphics[width=\linewidth]{simulationResults/fr3_accel_compare.png}
 \caption{FR3 emitted-trajectory acceleration ratio
 \(\max_j|\ddot q_j|/\ddot q_{j,\max}\) over time, DI-QP (blue) vs TOTG
 (red), B1--B4; dashed line is the limit. DI-QP is pinned within the limit
@@ -695,7 +695,7 @@ recovering heading and curvature as
 preliminary illustration, not a full kinematic-bicycle planner: on a
 lane-change maneuver with a representative 0.5\,rad/s steering-rate cap, the
 jerk-bounded time-first extension stays within the cap (peak rate
-0.129\,rad/s) while the path-first command exceeds it on the double lane
+0.130\,rad/s) while the path-first command exceeds it on the double lane
 change (0.594\,rad/s) because circular-blend curvature steps at path seams; a
 full bicycle-model treatment is left to future work.
 
@@ -793,7 +793,7 @@ starts, left to implementation work.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{benchmarks/fr3_dynamic.png}
+\includegraphics[width=\linewidth]{simulationResults/fr3_dynamic.png}
 \caption{7-DOF FR3 dynamic obstacle. Top-left: DI-QP
 joint velocities, all within the limit. Top-right: resolved-rate+APF
 baseline, which exceeds the velocity limit. Bottom-left: end-effector

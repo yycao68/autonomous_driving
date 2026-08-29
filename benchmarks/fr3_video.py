@@ -13,6 +13,8 @@ from pathlib import Path
 from fr3_dynamic_obstacle import run_qp, obstacle_pos, R_OBS
 from fr3_kinematics import fk
 
+RESULTS_DIR = Path(__file__).parent.parent / "simulationResults"
+
 XML = "/Users/yycao/ai_learn/pHRI/simulation/models/franka_fr3/fr3_darkscene.xml"
 H, W = 600, 800
 FPS = 50          # 100 Hz trajectory rendered every step -> ~0.5x slow-motion
@@ -45,7 +47,7 @@ def main():
     cam.distance = 1.9; cam.azimuth = 135; cam.elevation = -20
 
     ee_all = np.array([fk(Q[i]) for i in range(len(Q))])
-    out = Path(__file__).with_name("fr3_motion.mp4")
+    out = RESULTS_DIR / "fr3_motion.mp4"
     with imageio.get_writer(out, fps=FPS, codec="libx264",
                             quality=8, macro_block_size=8) as wr:
         for k in range(len(Q)):

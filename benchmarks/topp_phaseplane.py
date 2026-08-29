@@ -17,6 +17,8 @@ from di_planner import FR3_VMAX, FR3_AMAX
 from di_totg import BlendPath, topp, topp_ra
 from benchmark_fr3 import b2_acute_corner, b3_near_reversal
 
+RESULTS_DIR = Path(__file__).parent.parent / "simulationResults"
+
 
 def panels(ax_pp, ax_jv, title, W, max_dev, n=7):
     vmax, amax = FR3_VMAX[:n], FR3_AMAX[:n]
@@ -61,7 +63,7 @@ def main():
     fig.suptitle('Time-optimal path parameterization in the $(s,\\dot s)$ phase plane '
                  '(TOPP-RA style)', fontsize=12)
     fig.tight_layout(rect=[0, 0, 1, 0.97])
-    out = Path(__file__).with_name("topp_phaseplane.png")
+    out = RESULTS_DIR / "topp_phaseplane.png"
     fig.savefig(out, dpi=120)
     print(f"saved {out}")
 

@@ -38,6 +38,8 @@ import osqp
 from di_lateral import plan_lateral_jerk, _tri_matrices
 from di_planner import plan_di
 
+RESULTS_DIR = Path(__file__).parent.parent / "simulationResults"
+
 L_WHEELBASE = 2.7   # m
 
 
@@ -172,8 +174,8 @@ if __name__ == "__main__":
     print(f"  peak |lateral acc| = {np.abs(AL).max():.2f} m/s^2")
 
     # export CSV + JSON (what a planner would publish)
-    csv_out = Path(__file__).with_name("av_trajectory.csv")
-    json_out = Path(__file__).with_name("av_trajectory.json")
+    csv_out = RESULTS_DIR / "av_trajectory.csv"
+    json_out = RESULTS_DIR / "av_trajectory.json"
     with open(csv_out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(pts[0].keys())); w.writeheader()
         w.writerows(pts)

@@ -32,6 +32,8 @@ import scipy.sparse as sp
 from di_planner import FR3_AMAX, FR3_QMAX, FR3_QMIN, FR3_VMAX, di_matrices
 from fr3_kinematics import fk, jacobian_v
 
+RESULTS_DIR = Path(__file__).parent.parent / "simulationResults"
+
 
 ROOT = Path(__file__).resolve().parents[2]
 XML = ROOT / "pHRI/simulation/models/franka_fr3/fr3_darkscene.xml"
@@ -600,12 +602,12 @@ def main():
           f"{1e3*np.max(res['cycle_t']):.2f} ms")
     print(f"  cyclic tracking RMSE: {res['tracking_rmse']:.3f} rad")
 
-    out_plot = Path(__file__).with_name("fr3_falling_ball_cyclic.png")
+    out_plot = RESULTS_DIR / "fr3_falling_ball_cyclic.png"
     save_plot(res, out_plot)
-    out_traj = Path(__file__).with_name("fr3_falling_ball_cyclic_trajectory.png")
+    out_traj = RESULTS_DIR / "fr3_falling_ball_cyclic_trajectory.png"
     save_trajectory_plot(res, out_traj)
     if not args.no_video:
-        out_video = Path(__file__).with_name("fr3_falling_ball_cyclic.mp4")
+        out_video = RESULTS_DIR / "fr3_falling_ball_cyclic.mp4"
         render_video(res, out_video)
 
 
