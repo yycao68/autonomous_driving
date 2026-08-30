@@ -846,7 +846,11 @@ With a representative steering-rate cap of 0.5 rad/s, the jerk-bounded
 time-first planner stays within the actuator-rate envelope in both
 cruise maneuvers, whereas the path-first command exceeds the cap on the
 double lane change because circular-blend curvature steps at path seams.
-The pure Cartesian double-integrator variant, also reported by the
+Both maneuvers hold a fixed cruise speed of \(13\) m/s; since steering
+rate scales with forward speed for a fixed path curvature profile
+(\(\dot\delta\propto\dot\kappa v+\kappa\dot v\)), this margin is reported
+at that operating point and is not a claim that the cap is respected at
+all speeds. The pure Cartesian double-integrator variant, also reported by the
 harness, is intentionally not claimed to satisfy steering-rate
 constraints without adding curvature/rate constraints or a higher-order
 lateral state.

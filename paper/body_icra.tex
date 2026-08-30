@@ -693,11 +693,14 @@ recovering heading and curvature as
 \(\theta=\operatorname{atan2}(\dot y,\dot x)\),
 \(\kappa=(\dot x\ddot y-\dot y\ddot x)/(\dot x^2+\dot y^2)^{3/2}\). This is a
 preliminary illustration, not a full kinematic-bicycle planner: on a
-lane-change maneuver with a representative 0.5\,rad/s steering-rate cap, the
-jerk-bounded time-first extension stays within the cap (peak rate
-0.130\,rad/s) while the path-first command exceeds it on the double lane
-change (0.594\,rad/s) because circular-blend curvature steps at path seams; a
-full bicycle-model treatment is left to future work.
+lane-change maneuver at a fixed \(13\)\,m/s cruise speed with a
+representative 0.5\,rad/s steering-rate cap, the jerk-bounded time-first
+extension stays within the cap (peak rate 0.130\,rad/s) while the
+path-first command exceeds it on the double lane change (0.594\,rad/s)
+because circular-blend curvature steps at path seams; since steering rate
+scales with speed at fixed path curvature, this margin is specific to
+that operating point, not a claim across all speeds. A full
+bicycle-model treatment is left to future work.
 
 \subsection{Bounded-Latency Reactive
 Replanning}\label{d.-bounded-latency-reactive-replanning}

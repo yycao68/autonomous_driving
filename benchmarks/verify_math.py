@@ -121,32 +121,58 @@ def check_path_endpoints_unit_tangent():
 
 
 # E7. Blend path is C^1 (tangent continuous) but q'' jumps (0 on line, 1/r on arc)
+# -- external review finding: the original test sampled globally and checked
+# "no big tangent flip anywhere" plus "somewhere curvature~0, somewhere
+# curvature~1/r", which doesn't test the seam condition q'_-(s_i)=q'_+(s_i)
+# directly and can miss the exact transition between sample points. Evaluate
+# AT each segment boundary (line<->arc seam) instead, from both sides.
 def check_path_C1_and_curvature_jump():
     W = np.array([[0, 0, 0], [1, 0, 0.2], [0.4, 0.9, 0.2]], float)
     p = BlendPath(W, max_dev=0.1)
-    ss = np.linspace(1e-4, p.L - 1e-4, 4000)
-    tang = np.array([p.eval(s)[1] for s in ss])
-    # tangent continuity: consecutive tangents nearly aligned (no flip)
-    dots = np.einsum('ij,ij->i', tang[:-1], tang[1:])
-    c1_resid = 1.0 - dots.min()                     # ~0 if C^1
-    # curvature magnitude: should be ~0 (line) or ~1/r (arc); find both regimes
-    curv = np.array([np.linalg.norm(p.eval(s)[2]) for s in ss])
+    eps = 1e-6
+    seam_s = [seg["s0"] for seg in p.segs[1:]]        # interior segment boundaries
+    tangent_jumps, curvature_jumps = [], []
+    for s_i in seam_s:
+        _, qp_minus, qpp_minus = p.eval(s_i - eps)
+        _, qp_plus, qpp_plus = p.eval(s_i + eps)
+        tangent_jumps.append(np.linalg.norm(qp_plus - qp_minus))
+        curvature_jumps.append(np.linalg.norm(qpp_plus - qpp_minus))
+    tangent_jumps = np.array(tangent_jumps)
+    curvature_jumps = np.array(curvature_jumps)
+    c1_resid = tangent_jumps.max()                    # ~0 at every seam if C^1
     arc_r = p.min_blend_r
-    has_line = (curv < 1e-6).any()
-    has_arc = np.any(np.abs(curv - 1.0 / arc_r) < 1e-3 * (1.0 / arc_r))
-    ok = (c1_resid < 1e-4) and has_line and has_arc
-    check("E7  path C^1 + curvature jump 0 -> 1/r", ok, c1_resid)
+    expected_jump = 1.0 / arc_r
+    # at least one seam's curvature jump matches the claimed 0 -> 1/r magnitude
+    jump_matches_1_over_r = np.any(np.abs(curvature_jumps - expected_jump) < 0.05 * expected_jump)
+    ok = (c1_resid < 1e-4) and jump_matches_1_over_r
+    check("E7  path C^1 + curvature jump 0->1/r AT seams", ok, c1_resid)
 
 
-# E8. Blend deviation <= max_dev (path stays within tolerance of each corner)
+# E8. Blend deviation == max_dev (closest approach of the arc to the corner)
+# -- equations.md:133-134 defines the claimed quantity explicitly: delta =
+# r*(sec(phi/2)-1) is the arc's CLOSEST-APPROACH distance to the corner
+# (attained at the arc's bisector midpoint) -- "Check: E8 (closest approach
+# = 0.100 = delta_max)", i.e. a MIN over the arc, not a max. The arc's own
+# ENDPOINTS (where it meets the straight legs) are farther from the corner
+# than the midpoint by construction -- a circular fillet bulges toward the
+# corner at its middle and curves away toward the tangent points -- so a
+# whole-arc `.max()` tests a different (Hausdorff-style) property this
+# construction was never designed to satisfy, not the documented one.
+# External review's legitimate point was scope: the ORIGINAL `.min()` was
+# taken over the WHOLE path (all segments), not restricted to this corner's
+# own arc, so it could in principle be satisfied by some other segment's
+# proximity rather than genuinely checking this blend. Fixed: `.min()`,
+# scoped to ONLY the arc segment associated with this corner.
 def check_blend_deviation():
     W = np.array([[0, 0, 0], [1, 0, 0.2], [0.4, 0.9, 0.2]], float)
     max_dev = 0.1
     p = BlendPath(W, max_dev=max_dev)
-    ss = np.linspace(0, p.L, 6000)
+    arc_segs = [seg for seg in p.segs if seg["type"] == "arc"]
+    seg = arc_segs[0]              # single interior waypoint (W[1]) in this test -> single blend arc
+    ss = np.linspace(seg["s0"], seg["s0"] + seg["length"], 2000)
     pts = np.array([p.eval(s)[0] for s in ss])
-    d_corner = np.linalg.norm(pts - W[1], axis=1).min()   # closest approach
-    check("E8  blend deviation <= max_dev", d_corner <= max_dev + 1e-3, d_corner)
+    d_corner = np.linalg.norm(pts - W[1], axis=1).min()   # closest approach, arc only
+    check("E8  blend closest-approach == max_dev (min over arc)", abs(d_corner - max_dev) < 1e-3, d_corner)
 
 
 # E9. TOPP path-domain feasibility: along the time-optimal profile,
@@ -217,15 +243,23 @@ def check_steering_formula():
 
 
 # E13. s_ddot = 0.5 d(s_dot^2)/ds  used in the s->t reconstruction
+# -- external review finding: the original "analytic" comparison
+# (sdot * np.gradient(sdot, s)) is algebraically the same finite-difference
+# computation on the same underlying array as the "numeric" side (chain rule
+# applied twice via np.gradient), so it verified an internal identity, not an
+# independent implementation check. Compare against a genuine closed-form
+# profile instead: sdot(s) = a + b*s^2 has an exact analytic derivative,
+# giving sddot = sdot * d(sdot)/ds = (a+b*s^2)*(2*b*s) in closed form,
+# independent of np.gradient entirely.
 def check_sddot_relation():
     s = np.linspace(0, 3, 4000)
-    sdot = 0.5 + 0.4 * np.sin(s)               # arbitrary smooth profile
+    a, b = 0.5, 0.1
+    sdot = a + b * s ** 2
+    sddot_closed_form = sdot * (2.0 * b * s)   # exact: d(sdot)/ds = 2*b*s
     x = sdot ** 2
-    sdd_numeric = 0.5 * np.gradient(x, s)
-    # analytic: s_ddot = s_dot d(s_dot)/ds
-    sdd_analytic = sdot * np.gradient(sdot, s)
-    r = np.abs(sdd_numeric - sdd_analytic).max()
-    check("E13 s_ddot = 0.5 d(s_dot^2)/ds", r < 1e-3, r)
+    sdd_numeric = 0.5 * np.gradient(x, s)      # the actual formula di_totg.py uses
+    r = np.abs(sdd_numeric - sddot_closed_form).max()
+    check("E13 s_ddot = 0.5 d(s_dot^2)/ds (vs closed-form a+b*s^2)", r < 1e-3, r)
 
 
 if __name__ == "__main__":
