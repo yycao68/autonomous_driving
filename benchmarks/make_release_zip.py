@@ -67,6 +67,14 @@ def build(output_path: Path):
         sys.exit(f"error: {AO_SIM} not found -- clone avoidance_obstacle as a "
                   f"sibling of {AD_REPO.name} to build the release zip.")
 
+    # Capture provenance BEFORE creating the staging directory. The staging dir
+    # lives inside the repo, so once it exists `git status --short` is never
+    # empty and every snapshot was stamped "(dirty working tree!)" regardless of
+    # the real state -- which made the provenance record useless. Found by
+    # rebuilding on a verified-clean tree and still getting the dirty marker.
+    rev_ad = _git_rev(AD_REPO)
+    rev_ao = _git_rev(AO_SIM.parent)
+
     staging = HERE / "_release_staging"
     if staging.exists():
         shutil.rmtree(staging)
@@ -94,8 +102,8 @@ def build(output_path: Path):
     provenance = staging / "PROVENANCE.txt"
     provenance.write_text(
         "Frozen submission snapshot -- built by make_release_zip.py.\n\n"
-        f"autonomous_driving @ {_git_rev(AD_REPO)}\n"
-        f"avoidance_obstacle @ {_git_rev(AO_SIM.parent)}\n\n"
+        f"autonomous_driving @ {rev_ad}\n"
+        f"avoidance_obstacle @ {rev_ao}\n\n"
         "The following files are inlined here from avoidance_obstacle/sim/ "
         "(normally imported there via a live shim during development; "
         "sim/ is the single source of truth shared with the obstacle-"
