@@ -516,7 +516,13 @@ The trade-off is a larger state and extra predicted-state rows, though the
 decision sequence is still length \(nN\), now a jerk sequence
 \(J=[j(0),\dots,j(N-1)]\) rather than acceleration. The AV steering-rate
 benchmark (§VI.C) uses exactly this for the lateral channel, since steering
-rate depends on lateral jerk.
+rate depends on lateral jerk. The jerk row bounds lateral jerk, not steering
+rate itself: because
+\(\delta=\arctan\!\big(L(\dot x\ddot y-\dot y\ddot x)/(\dot x^2+\dot y^2)^{3/2}\big)\)
+depends nonlinearly on the lateral velocity and acceleration as well, a given
+\(j_{\max}\) implies a steering-rate cap only once those terms are accounted
+for at the operating point. The harness therefore \emph{measures} the
+resulting steering rate (§VI.C) rather than constraining it in the QP.
 
 The rest of the paper uses the double-integrator backbone as the main
 manipulator planner because it is the smallest model that enforces
