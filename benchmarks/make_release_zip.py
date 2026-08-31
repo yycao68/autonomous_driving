@@ -44,6 +44,7 @@ SHIMMED_MODULES = [
     "benchmark_dynamic.py",
     "mujoco_compare.py",
     "fr3_dynamic_obstacle.py",
+    "fr3_dynamic_randomized.py",
 ]
 
 EXCLUDE_DIRS = {"__pycache__", ".cache", ".mplconfig"}
