@@ -25,4 +25,9 @@ p27.pdf
 
 # Redundant archive (benchmarks/ is tracked directly)
 benchmarks.zip
-benchmarks_standalone.zip
+# benchmarks_standalone.zip IS tracked: it is the only way this repository is
+# reproducible on its own. benchmarks/ ships importlib shims that re-export the
+# real modules from the sibling avoidance_obstacle/sim repo (deliberately -- sim/
+# is the shared single source of truth), so a clone of this repo alone cannot run
+# the DI planner, TOTG, FR3, dynamic-obstacle or MuJoCo benchmarks. The zip is a
+# frozen snapshot with those modules inlined. Rebuild with make_release_zip.py.
