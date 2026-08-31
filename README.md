@@ -28,9 +28,14 @@ snapshot was built from.
 ```bash
 unzip benchmarks_standalone.zip -d /tmp/mp_bench
 cd /tmp/mp_bench/benchmarks
-python3 verify_math.py        # 14 equation checks
-python3 benchmark_av.py       # AV steering comparison
+python3 verify_math.py                # 14 equation checks
+python3 benchmark_av.py               # AV steering comparison
+python3 fr3_dynamic_randomized.py     # 20-trial randomized FR3 table (seed 7)
 ```
+
+Each script prints its paper table to stdout. Raw per-trial dumps are not
+committed; `simulationResults/` holds the rendered figures and the AV
+trajectory export, and the reproduction path is to rerun the cited script.
 
 **2. Clone both repositories as siblings** (the development layout):
 

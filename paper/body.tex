@@ -554,7 +554,16 @@ Trajectory Generation pipeline on a 7-DOF Franka FR3 manipulator and on
 an autonomous-vehicle steering task. Both planners receive identical
 waypoints and kinematic limits and emit \((q_d, \dot q_d, \ddot q_d)\)
 sampled at the same \(\Delta t\); all numbers reported below are
-measured by the accompanying open harness (\texttt{simulationResults/}). The
+measured by the accompanying open harness: the scripts in
+\texttt{benchmarks/}, which print each reported table to stdout, with the
+rendered figures and the AV trajectory export collected in
+\texttt{simulationResults/}. Because several benchmark modules re-export a
+shared planner from a sibling repository, a self-contained snapshot with those
+modules inlined is shipped as \texttt{benchmarks\_standalone.zip} together
+with a \texttt{PROVENANCE.txt} recording the exact source revisions; every
+table below reproduces from that archive alone. Raw per-trial dumps are not
+committed---the harness recomputes them---so the reproduction path is to rerun
+the cited script rather than to re-aggregate stored data. The
 TOTG reference uses the numerical-integration TOPP core---circular-blend
 path (Kunz--Stilman geometry \cite{kunz2012}), time-optimal forward/backward
 sweep on \(\dot s^2\) \cite{toppra}, then \(s\!\to\!t\) inversion and
