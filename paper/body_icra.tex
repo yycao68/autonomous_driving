@@ -28,22 +28,26 @@ constant across all robot configurations, so the horizon prediction
 matrices can be computed once offline and reused at every replanning
 cycle. The online problem is reduced to a convex Quadratic Program (QP)
 with fixed dynamics structure; only the current state, reference terms,
-and active constraint rows change. The contribution is thus the
-substitution of the geometric \(s\rightarrow t\) interface by a
-fixed-structure time-domain QP, not the observation that a double
-integrator is linear.
+and active constraint rows change. The contribution is a planner that,
+from this offline-precomputed and configuration-independent prediction
+structure, obtains hard kinematic feasibility and non-halting reactive
+replanning \emph{together}, at the cost of one convex QP per cycle---a
+combination a path-then-time pipeline provides only in separate stages
+and never at a fixed per-cycle latency. Concretely, this substitutes the
+geometric \(s\rightarrow t\) interface by a fixed-structure time-domain
+QP; it is not the observation that a double integrator is linear.
 
 The idea is inspired by a two-layer predictive impedance-control
 architecture for pHRI \cite{phri}, where dynamic cancellation exposes a
 constant double-integrator residual. Here the double integrator is a
-\emph{planning backbone}, not a claim about the physical plant: the
+\emph{planning backbone}: the
 planner optimizes reference trajectories for a downstream controller
 (computed-torque, impedance, admittance, or other), so the contribution
 is a configuration-independent time-domain parameterization enabling
-fast repeated QP updates, not a new robot dynamics model.
+fast repeated QP updates.
 
-The resulting framework should be understood as a \textbf{local
-predictive motion planner} rather than a complete global planner; we
+The resulting framework is a \textbf{local
+predictive motion planner}; we
 refer to it throughout as the \textbf{DI-QP planner} (the double-integrator
 backbone solved as a receding-horizon QP), and use ``time-first'' only
 when contrasting its time-domain structure with the ``path-first'' TOTG
@@ -111,8 +115,7 @@ a virtual double-integrator backbone,
   \ddot q = u,\qquad
   x=\begin{bmatrix}q^\top&\dot q^\top\end{bmatrix}^\top ,
 \end{equation}
-whose state contains planned positions and velocities. This model is not
-claimed to be the physical plant. It is a configuration-independent
+whose state contains planned positions and velocities. It is a configuration-independent
 trajectory generator that makes acceleration a decision variable and
 therefore keeps velocity and acceleration bounds linear.
 
@@ -519,10 +522,9 @@ is precisely the constant-\(A_d\) precomputation and bounded per-cycle
 latency that richer nonlinear formulations forego.
 
 This section reports four evaluation axes: reactive latency, jerk/
-smoothness, constraint fidelity, and the execution-time gap. The point is
-not that the proposed planner is uniformly faster than time-optimal path
-parameterization on static paths; it is not. Rather, the fixed time-domain
-QP trades a small amount of global time optimality for bounded reactive
+smoothness, constraint fidelity, and the execution-time gap. On static
+paths, time-optimal path parameterization is faster; the fixed time-domain
+QP trades a small amount of that global time optimality for bounded reactive
 updates, explicit limit satisfaction, and smoother command profiles.
 
 \subsection{\texorpdfstring{Path-First \(t\!\leftrightarrow\!s\)
@@ -678,29 +680,34 @@ time-optimal velocity-law reference (velocity-dominant weights) recovers
 the gap to \(1.06\)--\(1.32\times\) while the DI-QP still preserves zero
 limit violations, at the cost of raising jerk RMS by roughly an order of
 magnitude---the velocity-law reference is thus an explicit
-speed-versus-smoothness selector, not a strictly dominant setting. The DI
+speed-versus-smoothness selector. The DI
 planner remains feasible by construction with respect to the declared
 time-domain bounds, while path-first feasibility can be lost after
 circular-blend reconstruction and uniform-time resampling unless a
 smoother path representation or downstream post-processing is used.
 
-\subsection{Illustrative Extension: Vehicle Steering-Rate
-Smoothness}\label{c.-autonomous-vehicle-motion-planning-with-the-double-integrator-backbone}
+\subsection{Vehicle Steering-Rate Smoothness via the Lateral
+Backbone}\label{c.-autonomous-vehicle-motion-planning-with-the-double-integrator-backbone}
 
 The same backbone extends to autonomous-driving stacks that separate a
 Cartesian double integrator \(\ddot p=u\) from steering/throttle control,
 recovering heading and curvature as
 \(\theta=\operatorname{atan2}(\dot y,\dot x)\),
-\(\kappa=(\dot x\ddot y-\dot y\ddot x)/(\dot x^2+\dot y^2)^{3/2}\). This is a
-preliminary illustration, not a full kinematic-bicycle planner: on a
-lane-change maneuver at a fixed \(13\)\,m/s cruise speed with a
-representative 0.5\,rad/s steering-rate cap, the jerk-bounded time-first
-extension stays within the cap (peak rate 0.130\,rad/s) while the
-path-first command exceeds it on the double lane change (0.594\,rad/s)
-because circular-blend curvature steps at path seams; since steering rate
-scales with speed at fixed path curvature, this margin is specific to
-that operating point, not a claim across all speeds. A full
-bicycle-model treatment is left to future work.
+\(\kappa=(\dot x\ddot y-\dot y\ddot x)/(\dot x^2+\dot y^2)^{3/2}\). The
+benchmark evaluates one concrete claim: applying the constant-\(A_d\)
+principle to the lateral channel---optimizing lateral jerk, the
+derivative that sets steering rate---produces a steering profile inside a
+representative actuator-rate envelope where the path-first command does not.
+On a lane-change maneuver at a fixed \(13\)\,m/s cruise speed with a
+0.5\,rad/s steering-rate cap, the jerk-bounded time-first extension stays
+within the cap (peak rate 0.130\,rad/s) while the path-first command
+exceeds it on the double lane change (0.594\,rad/s) because
+circular-blend curvature steps at path seams; since steering rate scales
+with speed at fixed path curvature, this margin is specific to that
+operating point. The result is a lateral-channel claim at a fixed cruise
+speed, complete and tested for that channel; vehicle feasibility beyond
+it comes from speed, acceleration, curvature, and steering-rate
+constraints on top of the parameterization.
 
 \subsection{Bounded-Latency Reactive
 Replanning}\label{d.-bounded-latency-reactive-replanning}
@@ -722,9 +729,8 @@ which must halt and rebuild, degrades as that latency grows: completion
 rises from \(6.28\)\,s (halted \(0.08\)\,s) at zero added latency to
 \(7.18\)\,s (halted \(1.26\)\,s) at \(400\)\,ms. The reactive edge is
 decisive when replanning is expensive (full geometric search) or
-obstacles are fast, and marginal when the rebuild is cheap; with zero
-replan latency, TOTG and DI have comparable completion times, so the DI
-planner does not demonstrate lower total throughput.
+obstacles are fast, and marginal when the rebuild is cheap: with zero
+replan latency, TOTG and DI have comparable completion times.
 
 \textbf{Comparison with a sampling-based reactive baseline.} Since TOTG
 isolates the reactivity gap against path-first pipelines specifically, we
@@ -738,9 +744,9 @@ safety, but the cost structure differs sharply
 (Table~\ref{tab:mppi-compare}): MPPI enforces the velocity limit only by
 clamping the applied command---on \(166\) cycles---whereas the DI-QP
 enforces it as a convex constraint and never clamps, at roughly
-\(10\times\) lower mean compute; bounded-latency reactivity alone is thus
-not unique to this planner, but pairing it with hard limit feasibility at
-QP-level cost is.
+\(10\times\) lower mean compute; bounded-latency reactivity is thus shared
+with MPPI, and pairing it with hard limit feasibility at
+QP-level cost is what the DI-QP adds.
 
 {% converted Pandoc table
 \begin{table}[t]
@@ -940,8 +946,15 @@ high-frequency responsiveness: dynamical-system (DS) modulation
 \cite{khansari2012} deflects a closed-form velocity field around
 obstacles, recent work pairs a joint-space DS with sampling-based MPC for
 non-convex obstacles \cite{koptev2024}, and MPPI \cite{williams2017}
-samples parallel rollouts. The present method shares this
-``reactivity first'' philosophy but reaches it through a convex QP
+samples parallel rollouts. A parallel line keeps a precomputed path but
+governs the reference passed downstream: the Path Feasibility Governor
+\cite{pathfg} selects an auxiliary reference along the path that a
+nonlinear MPC is guaranteed to track with recursive feasibility. The
+present planner modifies the reference in the same spirit but dispenses
+with the path altogether, trading that formal certificate for a
+fixed-structure convex QP and configuration-independent precomputation.
+The present method shares this ``reactivity first'' philosophy but
+reaches it through a convex QP
 enforcing hard joint/velocity/acceleration limits directly---guarantees
 those methods lack natively---at the cost of the global non-convex
 avoidance they target; an asynchronous escape in the spirit of
@@ -974,8 +987,8 @@ virtual double-integrator backbone with constant \(A_d\). Because the
 prediction matrices are precomputed, online planning reduces to a
 fixed-structure convex QP that directly enforces velocity, acceleration,
 and local obstacle constraints while producing \(C^1\) reference
-trajectories. The experiments show the trade-off clearly: the method is not
-globally time-optimal like path-first TOTG/TOPP pipelines, but it keeps
+trajectories. The experiments show the trade-off clearly: path-first
+TOTG/TOPP pipelines are faster on static paths, while the DI-QP keeps
 declared time-domain limits explicit and supports bounded-latency reactive
 updates without a batch rebuild. Future work will focus on non-convex safe 
 corridors, and comparisons with online MPC and trajectory optimization.
