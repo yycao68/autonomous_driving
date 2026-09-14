@@ -51,17 +51,14 @@ predictive motion planner}; we
 refer to it throughout as the \textbf{DI-QP planner} (the double-integrator
 backbone solved as a receding-horizon QP), and use ``time-first'' only
 when contrasting its time-domain structure with the ``path-first'' TOTG
-pipeline. It does not perform global search; obstacle avoidance is
-handled by linearized safe-corridor rows or by artificial-potential-field
-reference deflection, both of which are local mechanisms. Within that scope, 
-the framework provides a fixed prediction structure
-whose size is independent of robot configuration (growing only with
-horizon, dimension, and active rows); direct optimization of time-indexed
-joint positions, velocities, and accelerations on a fixed grid; enforcement
-of velocity, acceleration, and linearized obstacle constraints inside one
-QP; elimination of the separate spatial-to-temporal stage; and continuous
-\(C^1\) output with hard-bounded piecewise-constant acceleration, plus a
-piecewise-jerk extension when continuous acceleration is required.
+pipeline. It performs no global search; obstacle avoidance is handled
+locally, by linearized safe-corridor rows or artificial-potential-field
+reference deflection. The framework's prediction structure is independent
+of robot configuration (growing only with horizon, dimension, and active
+rows); it directly optimizes time-indexed positions, velocities, and
+accelerations on a fixed grid via one QP in place of the separate
+spatial-to-temporal stage, producing continuous \(C^1\) output extended to
+piecewise-jerk when needed.
 
 
 \section{Framework and System
@@ -874,119 +871,69 @@ implementation must reduce.
 \subsection{Closed-Loop Dynamics Simulation in
 MuJoCo}\label{h.-physical-execution-in-mujoco}
 
-To verify that planner-level differences survive contact with rigid-body
+To verify that planner-level differences survive rigid-body contact
 dynamics, we execute both references on a torque-controlled FR3 in
-MuJoCo (3.8.1; full mass matrix and gravity). A \(500\) Hz
-computed-torque controller tracks each \(100\) Hz reference on the
-acute-corner maneuver.
+MuJoCo (3.8.1; full mass matrix and gravity), tracking each \(100\) Hz
+reference at \(500\) Hz on the acute-corner maneuver.
 
-{% converted Pandoc table
-\begin{table}[t]
-\caption{MuJoCo Computed-Torque Execution}
-\label{tab:mujoco-execution}
-\centering
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}lcc@{}}
-\toprule\noalign{}
-Metric (joint 1 / worst) & DI-QP & TOTG \\
-\midrule\noalign{}
-Peak demanded torque {[}Nm{]} & 58.0 & 56.7 \\
-Torque-rate RMS {[}Nm/s{]} & \textbf{181} & 383 \\
-Samples over torque limit & 0 & 0 \\
-Tracking RMSE {[}mrad{]} & 1.9 & 2.0 \\
-\bottomrule\noalign{}
-\end{tabular}
-\end{table}
-}
+\textbf{MuJoCo computed-torque execution (joint 1 / worst), DI-QP vs.\
+TOTG:} peak demanded torque 58.0 vs.\ 56.7\,Nm; torque-rate RMS
+\textbf{181} vs.\ 383\,Nm/s; samples over torque limit 0 vs.\ 0; tracking
+RMSE 1.9 vs.\ 2.0\,mrad.
 
-Both stay within the torque envelope and track to \(\approx\)2\,mrad RMS,
-but TOTG's acceleration discontinuity at the blend seam manifests
-in simulation as a stepped torque command (torque-rate RMS \(2.1\times\)
-that of the DI reference) and completes the fixed path faster, while the
-DI reference is smoother and gentler on the drivetrain---the
-smoothness-versus-time trade-off in closed-loop dynamics rather than at
-the planner output.
+Both stay within the torque envelope and track to \(\approx\)2\,mrad RMS.
+TOTG's blend-seam acceleration discontinuity manifests as a stepped torque
+command (torque-rate RMS \(2.1\times\) the DI reference) and completes the
+fixed path faster, while the DI reference is smoother and gentler on the
+drivetrain---the same smoothness-versus-time trade-off, now in closed-loop
+dynamics.
 
 \section{Implementation Notes}\label{vii.-implementation-notes}
 
 The QP is solved with OSQP \cite{osqp}. \textbf{Warm-starting} from the
-previous solution \(U^*\) cuts cold-start latency from $\sim$5\,ms to
-under 0.5\,ms for the decoupled box-constrained QPs, and \textbf{sparse
-structure} is reused throughout: \(H\) is assembled once offline, and the
-coupled-obstacle half-space uses a fixed sparsity pattern updated in
-place, avoiding symbolic re-factorization each cycle. \(N=20\) (0.2\,s)
-is the default \textbf{horizon length}---\(N=10\) is too short for
-position-tracking waypoints, while \(N\approx30\) only narrows the static
-time-optimality gap at higher jerk and solve time. For multi-waypoint
-tasks the goal is advanced online as waypoints are reached, with no path
-splicing or re-initialization; online cost is dominated by the QP solve
-itself (\(nN=140\) variables for the 7-DOF \(N{=}20\) case), since the
-precomputed \(\Phi,\Gamma\) are never rebuilt---the practical payoff of
-the constant-\(A_d\) property.
+previous solution \(U^*\) cuts cold-start latency from $\sim$5\,ms to under
+0.5\,ms for the decoupled box-constrained QPs; \textbf{sparse structure} is
+reused throughout, with \(H\) assembled once offline and the
+coupled-obstacle half-space updated in place via a fixed sparsity pattern,
+avoiding symbolic re-factorization each cycle. \(N=20\) (0.2\,s) is the
+default \textbf{horizon length}: \(N=10\) is too short for position-tracking
+waypoints, while \(N\approx30\) only narrows the static time-optimality gap
+at higher jerk and solve time. For multi-waypoint tasks the goal is advanced
+online with no path splicing or re-initialization; online cost is dominated
+by the QP solve itself (\(nN=140\) variables for the 7-DOF \(N{=}20\) case),
+since \(\Phi,\Gamma\) are never rebuilt---the practical payoff of the
+constant-\(A_d\) property.
 
 \section{Discussion}\label{viii.-discussion}
 
-\textbf{Operating envelope and validation scope.}\label{scope-and-limitations}
-The evaluated method is a \textbf{local} predictive planner whose operating
-envelope has four design conditions. \textbf{(i) Timing objective:} a
-pure position-tracking cost regulates like a damped second-order system,
-with time-to-goal of \(3\)--\(3.5\times\) TOTG; the analytic
-velocity-law reference recovers this to \(1.06\)--\(1.32\times\) at zero
-violations, acting as a speed-versus-smoothness selector. \textbf{(ii)
-Local linearization regime:} Method-A Jacobian linearization has error that
-grows quadratically in joint-speed$\times$horizon
-($\approx$10 cm at 50\% speed over 0.2 s), so fast or large-detour motions
-need a shorter horizon, an inflated Hessian-bound margin, or nonlinear
-rollout checking. \textbf{(iii) APF operating mode:} Method-B can settle at a
-local equilibrium; waypoint insertion or Method A is used when continued
-progress or a certified clearance is required. \textbf{(iv) Finite
-look-ahead:} the \(N = 20\) (0.2 s) horizon covers the tested obstacle speeds;
-faster obstacles require a longer horizon or an earlier trigger. A terminal
-braking-to-rest safe set supports persistent feasibility. The evidence is
-simulation-based: randomized coverage comprises 20 FR3 obstacle trials, and
-the MuJoCo study is closed-loop rigid-body simulation rather than hardware.
+\textbf{Operating envelope.}\label{scope-and-limitations}
+The method is a \textbf{local} predictive planner with four design
+conditions. \textbf{(i)} Position tracking gives time-to-goal of
+\(3\)--\(3.5\times\) TOTG; an analytic velocity-law reference recovers this
+to \(1.06\)--\(1.32\times\) at zero violations. \textbf{(ii)} Method-A's
+Jacobian linearization error grows quadratically in
+joint-speed\(\times\)horizon (\(\approx\)10\,cm at 50\% speed over 0.2\,s),
+bounding the tolerated horizon and detour size. \textbf{(iii)} Method-B
+(APF) can settle at a local equilibrium, handled by waypoint insertion or
+switching to Method A. \textbf{(iv)} The \(N=20\) (0.2\,s) horizon covers
+the tested obstacle speeds; faster obstacles need a longer horizon or
+earlier trigger and a terminal braking-to-rest safe set. All evidence
+is simulation-based (20 randomized FR3 trials; closed-loop MuJoCo
+rigid-body dynamics, not hardware).
 
-\textbf{Relationship to path-first and path--velocity pipelines.}
-The path-first baseline (TOTG, TOPP-RA) is time-optimal by construction and
-plans the whole path at once, an advantage on static tasks; its B2/B4
-violations arise from circular-blend geometry, not time parameterization,
-and vanish with a \(C^2\) path, and the near-reversal singularity likewise
-eases once curvature is bounded. The architectural distinction is that a
-changed path triggers a batch rebuild and the pipeline begins from a
-precomputed geometric path, whereas the time-domain formulation updates the
-local trajectory directly. The approaches occupy complementary operating
-points: global time-optimality and full-path lookahead on one side, and
-feasibility, smoothness, conditioning at degeneracies, and fixed-size reactive
-updates on the other.
-
-A distinct line of reactive planners trades absolute time-optimality for
-high-frequency responsiveness: dynamical-system (DS) modulation
-\cite{khansari2012} deflects a closed-form velocity field around
-obstacles, recent work pairs a joint-space DS with sampling-based MPC for
-non-convex obstacles \cite{koptev2024}, and MPPI \cite{williams2017}
-samples parallel rollouts. A parallel line keeps a precomputed path but
-governs the reference passed downstream: the Path Feasibility Governor
-\cite{pathfg} selects an auxiliary reference along the path that a
-nonlinear MPC is guaranteed to track with recursive feasibility. The
-present planner modifies the reference in the same spirit but dispenses
-with the path altogether, trading that formal certificate for a
-fixed-structure convex QP and configuration-independent precomputation.
-The methods expose different guarantee sets: the present convex QP directly
-enforces hard joint/velocity/acceleration limits, while DS and sampling-based
-methods address broader non-convex avoidance; an asynchronous escape in the spirit of
-\cite{koptev2024}, triggered when the QP stalls, is a natural extension of
-the hybrid switch in
-Section~\ref{b.-artificial-potential-field-target-deflection-soft-constraint}.
-GPU batch optimizers such as CuRobo \cite{curobo2023} solve a
-\emph{batch} global trajectory optimization ($\approx$50\,ms) that is
-complementary to, rather than competing with, a per-cycle receding-horizon
-planner like this one. Compared with CHOMP, TrajOpt, nonlinear MPC, or
-whole-body MPC \cite{sleiman2021}, which solve harder physical-dynamics
-problems, the present method instead treats the local planner as a virtual
-trajectory generator with precomputed \(\Phi,\Gamma\): a
-configuration-independent parameterization for high-rate replanning, not a
-new physical model.
+\textbf{Related work.} The path-first baseline (TOTG, TOPP-RA) is
+time-optimal by construction but rebuilds in batch on a changed path; the
+present method trades that full-path lookahead for fixed-size reactive
+updates (its own B2/B4 violations vanish with a \(C^2\) path). Reactive
+alternatives include DS modulation \cite{khansari2012,koptev2024}, MPPI
+\cite{williams2017}, and the Path Feasibility Governor \cite{pathfg}, which
+governs a downstream reference for a nonlinear MPC with recursive
+feasibility -- the present planner modifies the reference in the same
+spirit but drops the path for a fixed-structure QP, directly enforcing hard
+joint/velocity/acceleration limits rather than the broader non-convex
+avoidance those methods target. GPU batch optimizers (CuRobo
+\cite{curobo2023}) and trajectory-optimization/whole-body methods
+\cite{sleiman2021} instead solve a different, harder problem.
 
 % \subsection{Validation Gaps}\label{validation-gaps}
 
@@ -1006,6 +953,6 @@ fixed-structure convex QP that directly enforces velocity, acceleration,
 and local obstacle constraints while producing \(C^1\) reference
 trajectories. The experiments show the trade-off clearly: path-first
 TOTG/TOPP pipelines are faster on static paths, while the DI-QP keeps
-declared time-domain limits explicit and supports fixed-size reactive updates
-without a batch rebuild. Future work will focus on non-convex safe
-corridors, and comparisons with online MPC and trajectory optimization.
+declared time-domain limits explicit and supports fixed-size reactive
+updates without a batch rebuild. Future work targets non-convex safe
+corridors and comparisons with online and sampling-based MPC.
