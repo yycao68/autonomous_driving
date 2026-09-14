@@ -32,8 +32,8 @@ and active constraint rows change. The contribution is a planner that,
 from this offline-precomputed and configuration-independent prediction
 structure, obtains hard kinematic feasibility and non-halting reactive
 replanning \emph{together}, at the cost of one convex QP per cycle---a
-combination a path-then-time pipeline provides only in separate stages
-and never at a fixed per-cycle latency. Concretely, this substitutes the
+combination a path-then-time pipeline provides only in separate stages.
+Concretely, this substitutes the
 geometric \(s\rightarrow t\) interface by a fixed-structure time-domain
 QP; it is not the observation that a double integrator is linear.
 
@@ -105,8 +105,9 @@ acceleration profile $U$ subject to velocity/acceleration/jerk bounds and
 linearized workspace-obstacle rows (convex corridor polytope, hard; or APF goal
 deflection, soft), emitting a time-indexed trajectory $(q_d,\dot q_d,\ddot q_d)$
 to a downstream tracking controller and plant. Current state $x(k)$ and updated
-obstacles re-enter every cycle, giving bounded-latency reactive replanning at
-100\,Hz without the stop-and-rebuild of path-first pipelines.}
+obstacles re-enter every cycle, giving fixed-size reactive updates without
+the stop-and-rebuild of path-first pipelines; Section~VI reports the measured
+100\,Hz timing distribution and tail.}
 \label{fig:arch}
 \end{figure*}
 
@@ -255,8 +256,10 @@ disappears, then \(R\) if jerk is excessive. The experiments do not share a
 single setting, so we list what each actually uses: the static FR3 benchmark
 and the Hessian-norm study run the planner defaults \(K_q=50\), \(D_q=0\),
 \(R=0.05\,I\), \(\gamma=8\); the FR3 dynamic-obstacle study uses
-\(K_q=6\), \(D_q=8\), \(R=0.05\,I\), \(\gamma=8\); and the vehicle benchmark
-uses \(K_q=12\), \(D_q=4\), \(R=0.3\,I\), \(\gamma=6\). Note that
+\(K_q=6\), \(D_q=8\), \(R=0.05\,I\), \(\gamma=8\); the Cartesian-DI vehicle
+benchmark uses \(K_q=12\), \(D_q=4\), \(R=0.3\,I\), \(\gamma=6\); and the
+jerk-bounded lateral planner reported in Table~\ref{tab:av-steering} uses
+\(w_q=20\), \(w_a=0.2\), \(w_r=0.02\), \(\gamma=10\). Note that
 \(D_q=0\) in the static FR3 case: there the terminal multiplier and the
 acceleration bound alone suppress overshoot, so no velocity-error damping is
 needed, and the \(D_q\approx2\sqrt{K_q}\) guidance above applies to the
@@ -454,20 +457,21 @@ obstacles.
 
 \section{Architectural Properties}\label{v.-architectural-properties}
 
-\subsection{Constant-Structure MPC and Bounded Replanning
-Latency}\label{a.-constant-structure-mpc-and-bounded-replanning-latency}
+\subsection{Constant-Structure MPC and Fixed-Size Replanning
+Updates}\label{a.-constant-structure-mpc-and-bounded-replanning-latency}
 
 The central property is that all dynamics prediction matrices (\(\Phi\),
 \(\Gamma\), \(H\)) are precomputed offline and never rebuilt online;
 obstacle rows are re-assembled each cycle but still project \(J_v\) through
 the fixed \(\Gamma\). Each cycle thus executes a QP whose dynamics structure
-is fixed at initialization, so replanning latency is bounded by one QP solve
-for a given active set---growing with the obstacle-row count but independent
-of configuration and free of prediction-matrix rebuilds. This is distinct
+is fixed at initialization. Per-cycle work consists of one QP update and
+solve for a given active set---growing with the obstacle-row count but
+independent of configuration and free of prediction-matrix rebuilds. This is distinct
 from configuration-dependent MPC (which recomputes prediction matrices at
 each linearization point) and from batch planning (TOTG, TOPP-RA, where any
-workspace change triggers a full rebuild); the constant-\(A_d\) property is
-what makes bounded per-cycle reactivity achievable in a convex formulation.
+workspace change triggers a full rebuild). The constant-\(A_d\) property makes
+the update size predictable; it does not by itself establish a hard execution-time
+bound, so Section~VI reports p95 and maximum latency separately.
 
 \subsection{Elimination of Spatial-to-Temporal
 Transformations}\label{b.-elimination-of-spatial-to-temporal-transformations}
@@ -590,12 +594,14 @@ measured by the accompanying open harness: the scripts in
 \texttt{benchmarks/}, which print each reported table to stdout, with the
 rendered figures and the AV trajectory export collected in
 \texttt{simulationResults/}. Because several benchmark modules re-export a
-shared planner from a sibling repository, a self-contained snapshot with those
-modules inlined is shipped as \texttt{benchmarks\_standalone.zip} together
-with a \texttt{PROVENANCE.txt} recording the exact source revisions; every
-table below reproduces from that archive alone. Raw per-trial dumps are not
-committed---the harness recomputes them---so the reproduction path is to rerun
-the cited script rather than to re-aggregate stored data. The
+shared planner from a sibling repository, a frozen snapshot with those modules
+inlined is shipped as \texttt{benchmarks\_standalone.zip}, together with source
+provenance and a dependency manifest. All non-MuJoCo tables reproduce from that
+archive alone. The computed-torque execution table additionally requires the
+third-party Franka model/assets via \texttt{FR3\_XML}; those assets are not
+bundled. Raw per-trial dumps are not committed---the harness recomputes
+them---and wall-clock values are hardware/OS dependent, so deterministic
+constraint and geometry metrics are distinguished from timed measurements. The
 TOTG reference uses the numerical-integration TOPP core---circular-blend
 path (Kunz--Stilman geometry \cite{kunz2012}), time-optimal forward/backward
 sweep on \(\dot s^2\) \cite{toppra}, then \(s\!\to\!t\) inversion and
@@ -606,13 +612,13 @@ resampling.
 MPPI baseline on the planar dynamic-obstacle test
 (Section~\ref{d.-bounded-latency-reactive-replanning}). Online nonlinear MPC
 and CHOMP/TrajOpt are deferred to future work; the present planner's appeal
-is precisely the constant-\(A_d\) precomputation and bounded per-cycle
-latency that richer nonlinear formulations forego.
+is the constant-\(A_d\) precomputation and fixed-size online update, while
+richer nonlinear formulations address a broader planning model.
 
 This section reports four evaluation axes: reactive latency, jerk/
 smoothness, constraint fidelity, and the execution-time gap. On static
 paths, time-optimal path parameterization is faster; the fixed time-domain
-QP trades a small amount of that global time optimality for bounded reactive
+QP trades a small amount of that global time optimality for fixed-size reactive
 updates, explicit limit satisfaction, and smoother command profiles.
 
 \subsection{\texorpdfstring{Path-First \(t\!\leftrightarrow\!s\)
@@ -710,9 +716,11 @@ B4 dense (24 waypoints) & 13.24 & \textbf{3.83} & 1.000 & \textbf{1.445}
 Separating the decoupled and coupled cases, the single-threaded Python
 harness (OSQP tolerance \(10^{-6}\), warm-started, fixed KKT sparsity on
 the coupled update path) solves the 140-variable decoupled box-constrained
-QP (7 DOF, \(N{=}20\)) in 0.05--0.09 ms mean ($\sim$0.4 ms worst; 0.03 ms
-for a warm-started goal reaction) and the 141-variable coupled obstacle QP
-(Method A, fixed-sparsity) in 2.1 ms mean / 9.5 ms worst.
+QP (7 DOF, \(N{=}20\)) in 0.03--0.08 ms mean on the current workstation.
+Across three repeated fixed-sparsity runs, the 141-variable coupled obstacle
+QP (Method A) has solve mean/p95/max ranges of
+1.87--2.07/3.87--4.49/8.34--9.19 ms; including Python assembly and updates,
+the full-cycle ranges are 4.74--5.07/6.60--7.70/12.26--18.48 ms.
 
 A horizon sweep \(N=\{10,20,30,40\}\) on the same coupled FR3
 dynamic-obstacle problem (\texttt{sweep\_N.py}) confirms why \(N=20\)
@@ -774,9 +782,9 @@ Replacing circular blends with a \(C^2\) spline removes the B2/B4
 violations entirely, so TOPP-RA on a \(C^2\) path matches the DI planner
 on those metrics.
 
-\textbf{Time-optimality.} TOTG is the lower bound by construction, and
-the quadratic-cost DI planner pays for its smoothness in time (B1
-\(3.4\times\), B4 \(3.5\times\) slower). Supplying the analytic
+\textbf{Time-optimality.} TOTG is the lower bound by construction. With
+the smooth quadratic-cost setting, the DI completion-time ratios are
+\(3.4\times\) in B1 and \(3.5\times\) in B4. Supplying the analytic
 time-optimal velocity-law reference (velocity-dominant weights,
 \texttt{improve\_test.py}) recovers the gap to \(1.06\)--\(1.32\times\)
 while the DI-QP still preserves zero limit violations, as quantified in
@@ -899,7 +907,7 @@ to that operating point. The pure Cartesian double-integrator variant, also repo
 harness, satisfies steering-rate constraints once curvature/rate
 constraints or a higher-order lateral state are added.
 
-\subsection{Bounded-Latency Reactive
+\subsection{Fixed-Size Reactive
 Replanning}\label{d.-bounded-latency-reactive-replanning}
 
 The reactivity advantage is structural rather than
@@ -910,11 +918,13 @@ position each 100 Hz cycle and re-solves the box-constrained QP,
 deflecting continuously. The path-first planner must halt, rebuild a
 detour path, and re-run TOPP from rest.
 
-Both reach the goal collision-free, but with very different cost
-structure. In this fixed-size APF benchmark, the DI planner's
-\textbf{worst reaction latency is \(0.70\) ms}: it is one warm-started QP
-update rather than a geometric path rebuild. We
-sweep the replan latency from \(0\) to \(400\) ms:
+Both reach the goal collision-free, but with different cost structures.
+On an Intel Xeon w7-2475X under Windows 11, Python 3.12.12, and OSQP 1.1.3,
+three repeated runs of this fixed-size APF benchmark give DI mean cycle
+latency of 0.118--0.130 ms and worst reaction latency of 1.92--2.22 ms.
+The corresponding path-first rebuild takes 26.9--40.7 ms before any added
+search delay. We sweep an additional path-search latency from \(0\) to
+\(400\) ms:
 
 {% converted Pandoc table
 \begin{table}[t]
@@ -939,10 +949,10 @@ TOTG time halted {[}s{]}
 DI completion {[}s{]}
 \end{minipage} \\
 \midrule\noalign{}
-0 (TOPP only) & 6.28 & 0.08 & \textbf{6.53 (flat)} \\
-100 ms & 6.35 & 0.36 & 6.53 \\
-200 ms & 6.63 & 0.66 & 6.53 \\
-400 ms & 7.18 & 1.26 & 6.53 \\
+0 (TOPP only) & 6.31--6.33 & 0.12--0.14 & \textbf{6.53 (flat)} \\
+100 ms & 6.38--6.40 & 0.39--0.41 & 6.53 \\
+200 ms & 6.66--6.68 & 0.70--0.72 & 6.53 \\
+400 ms & 7.20--7.21 & 1.29--1.30 & 6.53 \\
 \bottomrule\noalign{}
 \end{tabular}
 \end{table}
@@ -966,16 +976,16 @@ the \emph{same} planar double integrator and moving obstacle: each
 \(H=20\) horizon, scores them by a goal/obstacle/effort cost, and applies
 the softmax-weighted mean. Tuned to match the DI planner's clearance (\(\lambda=60,\sigma=4\), the
 tightest-clearance safe setting in a temperature sweep; lower \(\lambda\)
-becomes winner-take-all and fails to reach the goal, so MPPI needs
-tuning the convex QP does not) (\texttt{benchmark\_dynamic.py}), both
+becomes winner-take-all and does not reach the goal in this scenario)
+(\texttt{benchmark\_dynamic.py}), both
 reach the goal with essentially identical safety, but the cost structure
 differs sharply (Table~\ref{tab:mppi-compare}): MPPI shares the
-bounded-latency, never-halt property, yet enforces the velocity limit
+continuous-update property, yet enforces the velocity limit
 only by clamping the applied command---on \(166\) cycles---whereas the
-DI-QP enforces it as a convex constraint and never clamps. MPPI also pays
-\(K\!\times\!H\) rollouts per cycle, roughly \(10\times\) the mean and
-\(\sim\!3\times\) the (tail-sensitive, machine-dependent) worst-case compute
-of the single warm-started QP. Bounded-latency reactivity is thus shared
+DI-QP enforces it as a convex constraint and never clamps. MPPI evaluates
+\(K\!\times\!H\) rollouts per cycle; on the test workstation it uses
+approximately 15--16\(\times\) the DI-QP mean cycle time and about
+4--5\(\times\) its tail-sensitive worst-cycle time. Continuous reactivity is thus shared
 with MPPI; obtaining it together with hard limit feasibility at QP-level
 cost is what the DI-QP adds. The same holds
 for GPU sampling MPC: STORM \cite{storm2022} reaches a comparable rate
@@ -1000,8 +1010,8 @@ Min clearance {[}m{]} & 0.485 & 0.483 \\
 Velocity limit enforced by & QP constraint & clamping \\
 Cycles needing velocity clamp & \textbf{0} & 166 \\
 Rollouts per cycle & 1 QP & \(512\times20\) \\
-Mean cycle latency {[}ms{]} & \textbf{0.11} & 1.13 \\
-Worst cycle latency {[}ms{]} & \textbf{0.70} & 2.2 \\
+Mean cycle latency {[}ms{]} & \textbf{0.118--0.130} & 1.886--1.979 \\
+Worst cycle latency {[}ms{]} & \textbf{1.92--2.22} & 8.31--9.97 \\
 \bottomrule\noalign{}
 \end{tabular}
 \end{table}
@@ -1013,9 +1023,9 @@ Worst cycle latency {[}ms{]} & \textbf{0.70} & 2.2 \\
 \caption{Planar dynamic-obstacle test. Left: trajectories---DI-QP (solid)
 detours spatially, MPPI (dash-dot) avoids by \emph{timing} its passage,
 path-first (dashed) halts and rebuilds; gray disks are obstacle snapshots.
-Right: clearance vs time, all three collision-free. DI-QP reaction latency
-is bounded at \(0.70\) ms with no path rebuild; MPPI is reactive too but at
-\(\approx 10\times\) the compute and without hard limits
+Right: clearance vs time, all three collision-free. DI-QP reacts without a
+path rebuild; across three workstation runs its mean cycle latency is
+0.118--0.130 ms versus 1.886--1.979 ms for MPPI, which also lacks hard limits
 (Table~\ref{tab:mppi-compare}).}
 \label{fig:dynamic-obstacle}
 \end{figure}
@@ -1056,14 +1066,12 @@ baseline---lacking hard constraints---exceeds the joint velocity limit at
 42 samples and acceleration at 346, whereas the QP holds every joint limit
 exactly and keeps the linearized half-space feasible (zero slack), at a
 min EE clearance of 0.296 m versus 0.339 m for the unconstrained baseline.
-The
-fixed-sparsity OSQP update path (\texttt{fixed\_sparsity\_timing.py}) gives
-a coupled-QP solve of 2.1 ms mean / 4.4 ms p95 / 9.5 ms worst, or 3.7 / 5.9
-/ 11.1 ms including Python assembly overhead. These single-thread Python
-numbers are diagnostics: the harness meets 100 Hz
-at p95 while worst-case cycles exceed 10 ms, so a hard deadline would need
-the tail removed by a compiled solver and fixed active-set warm starts,
-which we leave to implementation work.
+The fixed-sparsity OSQP update path
+(\texttt{fixed\_sparsity\_timing.py}) gives the repeated solve and full-cycle
+ranges reported in Section~\ref{b.-fr3-manipulator-results}. The single-thread
+Python harness meets 100 Hz at p95; full-cycle maxima of 12.26--18.48 ms
+identify the tail-latency target for a compiled implementation with reusable
+active-set or factorization state.
 
 \begin{figure}[t]
 \centering
@@ -1104,7 +1112,7 @@ Worst min EE clearance {[}m{]} & 0.261 & 0.266 \\
 Total joint velocity violations & \textbf{0} & 618 \\
 Total joint acceleration violations & \textbf{0} & 6889 \\
 Max slack used {[}m{]} & 0.0000 & --- \\
-QP solve p95 / max {[}ms{]} & ≈5.2 / ≈15 & --- \\
+QP solve p95 / max {[}ms{]} & 6.15--6.66 / 25.96--33.10 & --- \\
 \bottomrule\noalign{}
 \end{tabular}
 \end{table}
@@ -1115,16 +1123,14 @@ unconstrained and can command arbitrarily aggressive joint velocities
 and accelerations. The QP accepts a smaller but still positive clearance
 while preserving every declared joint limit.
 
-The three worst-case timings in this paper measure different quantities:
-the \(9.5\) ms bare OSQP solve (§VI.B) is the fixed-sparsity solve; the
-\(11.1\) ms in Section~\ref{f.-scaling-to-the-7-dof-arm-with-a-dynamic-obstacle}
-adds Python assembly/update overhead; and the \(\approx 14\)--\(15\) ms here
-is the tail over 20 randomized trials. The p95 stays within a few
-milliseconds in all three; only the rare tail cycles---not the median---would
-need a compiled solver and fixed active-set warm starts to meet a hard
-\(10\) ms deadline.
+The timing measurements cover different scopes. The repeated fixed-sparsity
+study gives 8.34--9.19 ms solve maxima and 12.26--18.48 ms full-cycle maxima;
+across three runs of the 20-trial randomized study, solve p95 is
+6.15--6.66 ms and the maximum is 25.96--33.10 ms. The p95 remains below
+10 ms, while the full-cycle and randomized maxima locate the tail that a
+hard-deadline implementation must reduce.
 
-\subsection{Physical Execution in
+\subsection{Closed-Loop Dynamics Simulation in
 MuJoCo}\label{h.-physical-execution-in-mujoco}
 
 To verify that planner-level differences survive contact with rigid-body
@@ -1154,11 +1160,11 @@ Tracking RMSE {[}mrad{]} & 1.9 & 2.0 \\
 }
 
 Both stay within the torque envelope and track to \(\approx 2\) mrad RMS.
-TOTG's acceleration discontinuity at the blend seam manifests physically as
+TOTG's acceleration discontinuity at the blend seam manifests in simulation as
 a stepped torque command (torque-rate RMS \(2.1\times\) that of the DI
 reference), while the DI reference produces a smooth torque profile. TOTG
 completes the fixed path faster; the DI command is gentler on the
-drivetrain---the smoothness-versus-time trade-off in closed-loop physics
+drivetrain---the smoothness-versus-time trade-off in closed-loop dynamics
 rather than at the planner output.
 
 \section{Implementation Notes}\label{vii.-implementation-notes}
@@ -1192,25 +1198,30 @@ constraint enforcement in a single continuously-running optimization loop,
 rather than planning in space and then parameterizing in time. The
 constant-\(A_d\) property---from the nilpotency of the double-integrator
 system matrix---is the enabling insight: it decouples trajectory-prediction
-cost from configuration, making 100 Hz replanning viable on standard
-hardware.
+cost from configuration. On the test workstation, the Python implementation
+achieves sub-10 ms full-cycle p95, while the reported maxima remain above a
+hard 100 Hz deadline.
 
-\subsection{Scope and Limitations}\label{scope-and-limitations}
+\subsection{Operating Envelope and Validation Scope}\label{scope-and-limitations}
 
-This is a \textbf{local} predictive planner bounded by
-four limitations. \textbf{(i) Not time-optimal by default:} a
+The evaluated method is a \textbf{local} predictive planner whose operating
+envelope has four design conditions. \textbf{(i) Timing objective:} a
 pure position-tracking cost regulates like a damped second-order system,
-inflating time-to-goal to \(3\)--\(3.5\times\) TOTG; the analytic
+with time-to-goal of \(3\)--\(3.5\times\) TOTG; the analytic
 velocity-law reference recovers this to \(1.06\)--\(1.32\times\) at zero
 violations, acting as a speed-versus-smoothness selector. \textbf{(ii)
-Linearization accuracy:} Method-A Jacobian linearization is accurate only
-locally, with error growing quadratically in joint-speed$\times$horizon
+Local linearization regime:} Method-A Jacobian linearization has error that
+grows quadratically in joint-speed$\times$horizon
 ($\approx$10 cm at 50\% speed over 0.2 s), so fast or large-detour motions
 need a shorter horizon, an inflated Hessian-bound margin, or nonlinear
-rollout checking. \textbf{(iii) Local minima:} Method-B APF can stall;
-appending a terminal braking-to-rest safe set improves persistent
-feasibility. \textbf{(iv) Finite look-ahead:} the \(N = 20\) (0.2 s)
-horizon may be too short for very fast obstacles.
+rollout checking. \textbf{(iii) APF operating mode:} Method-B can settle at a
+local equilibrium; waypoint insertion or Method A is used when continued
+progress or a certified clearance is required. \textbf{(iv) Finite
+look-ahead:} the \(N = 20\) (0.2 s) horizon covers the tested obstacle speeds;
+faster obstacles require a longer horizon or an earlier trigger. A terminal
+braking-to-rest safe set supports persistent feasibility. The evidence is
+simulation-based: randomized coverage comprises 20 FR3 obstacle trials, and
+the MuJoCo study is closed-loop rigid-body simulation rather than hardware.
 
 \subsection{Relationship to Path-First and Path--Velocity
 Pipelines}\label{relationship-to-path-first-and-pathvelocity-pipelines}
@@ -1219,14 +1230,13 @@ The path-first baseline (TOTG, TOPP-RA) is time-optimal by construction
 and plans the whole path at once, an advantage on static tasks. Its B2/B4
 acceleration violations arise from circular-blend geometry, not time
 parameterization, and vanish with a \(C^2\) path; the near-reversal
-singularity likewise eases once curvature is bounded. What remains
-intrinsic and unrepairable without architectural change is (a) the absence
-of bounded per-cycle reactivity (any change triggers a batch rebuild) and
-(b) the need for a precomputed geometric path---precisely the limitations
-the time-domain architecture addresses. The two are complementary: the
+singularity likewise eases once curvature is bounded. The architectural
+distinction is that a changed path triggers a batch rebuild and the pipeline
+begins from a precomputed geometric path, whereas the time-domain formulation
+updates the local trajectory directly. The two are complementary: the
 proposed planner trades global time-optimality and full-path lookahead for
-feasibility, smoothness, conditioning at degeneracies, and bounded-latency
-reactivity.
+feasibility, smoothness, conditioning at degeneracies, and fixed-size reactive
+updates.
 
 Industrial stacks such as Apollo separate path from speed planning along a
 fixed arc-length \(s\), often with a virtual double-integrator speed model
@@ -1249,11 +1259,9 @@ feasibility and stability. The present planner modifies the reference in
 the same spirit but dispenses with the path altogether---there is no arc
 length to govern---trading that formal feasibility certificate for a
 fixed-structure convex QP and configuration-independent precomputation.
-The present method shares this ``reactivity first'' philosophy but reaches
-it through a convex
-QP enforcing hard joint/velocity/acceleration limits directly---guarantees
-those methods lack natively---at the cost of the global non-convex
-avoidance they target. An asynchronous escape in the spirit of
+The methods expose different guarantee sets: the present convex QP directly
+enforces hard joint/velocity/acceleration limits, while DS and sampling-based
+methods address broader non-convex avoidance. An asynchronous escape in the spirit of
 \cite{koptev2024}, triggered when the QP stalls, is a natural extension of
 the hybrid switch in
 Section~\ref{b.-artificial-potential-field-target-deflection-soft-constraint}.
@@ -1286,6 +1294,6 @@ fixed-structure convex QP that directly enforces velocity, acceleration,
 and local obstacle constraints while producing \(C^1\) reference
 trajectories. The experiments show the trade-off clearly: path-first
 TOTG/TOPP pipelines are faster on static paths, while the DI-QP keeps
-declared time-domain limits explicit and supports bounded-latency reactive
-updates without a batch rebuild. Future work will focus on non-convex safe
+declared time-domain limits explicit and supports fixed-size reactive updates
+without a batch rebuild. Future work will focus on non-convex safe
 corridors, and comparisons with online MPC and trajectory optimization.

@@ -63,10 +63,38 @@ def _git_rev(repo: Path) -> str:
     return out + (" (dirty working tree!)" if dirty else "")
 
 
+def _read_frozen_sources(output_path: Path) -> tuple[dict[str, bytes], str]:
+    if not output_path.is_file():
+        sys.exit(f"error: {AO_SIM} not found and no existing snapshot is "
+                 f"available at {output_path}")
+
+    with zipfile.ZipFile(output_path) as archive:
+        try:
+            sources = {
+                name: archive.read(f"benchmarks/{name}")
+                for name in SHIMMED_MODULES
+            }
+            provenance = archive.read("benchmarks/PROVENANCE.txt").decode("utf-8")
+        except KeyError as error:
+            sys.exit(f"error: existing snapshot is missing {error}")
+
+    source_revision = next(
+        (line.removeprefix("avoidance_obstacle @ ")
+         for line in provenance.splitlines()
+         if line.startswith("avoidance_obstacle @ ")),
+        "unknown (reused from existing snapshot)",
+    )
+    return sources, source_revision
+
+
 def build(output_path: Path):
-    if not AO_SIM.is_dir():
-        sys.exit(f"error: {AO_SIM} not found -- clone avoidance_obstacle as a "
-                  f"sibling of {AD_REPO.name} to build the release zip.")
+    frozen_sources = None
+    if AO_SIM.is_dir():
+        rev_ao = _git_rev(AO_SIM.parent)
+    else:
+        frozen_sources, rev_ao = _read_frozen_sources(output_path)
+        print(f"warning: {AO_SIM} not found; reusing inlined modules from "
+              f"{output_path}")
 
     # Capture provenance BEFORE creating the staging directory. The staging dir
     # lives inside the repo, so once it exists `git status --short` is never
@@ -74,7 +102,6 @@ def build(output_path: Path):
     # the real state -- which made the provenance record useless. Found by
     # rebuilding on a verified-clean tree and still getting the dirty marker.
     rev_ad = _git_rev(AD_REPO)
-    rev_ao = _git_rev(AO_SIM.parent)
 
     staging = HERE / "_release_staging"
     if staging.exists():
@@ -95,10 +122,13 @@ def build(output_path: Path):
             shutil.copy2(item, staging / item.name)
 
     for name in SHIMMED_MODULES:
-        real = AO_SIM / name
-        if not real.is_file():
-            sys.exit(f"error: shim target {real} not found")
-        shutil.copy2(real, staging / name)
+        if frozen_sources is not None:
+            (staging / name).write_bytes(frozen_sources[name])
+        else:
+            real = AO_SIM / name
+            if not real.is_file():
+                sys.exit(f"error: shim target {real} not found")
+            shutil.copy2(real, staging / name)
 
     provenance = staging / "PROVENANCE.txt"
     provenance.write_text(
@@ -108,7 +138,10 @@ def build(output_path: Path):
         "The following files are inlined here from avoidance_obstacle/sim/ "
         "(normally imported there via a live shim during development; "
         "sim/ is the single source of truth shared with the obstacle-"
-        "avoidance paper):\n" + "\n".join(f"  - {n}" for n in SHIMMED_MODULES) + "\n"
+        "avoidance paper):\n" + "\n".join(f"  - {n}" for n in SHIMMED_MODULES) + "\n\n"
+        "Scope: all non-MuJoCo paper tables run from this snapshot alone.\n"
+        "mujoco_compare.py additionally requires a third-party Franka FR3 model\n"
+        "and assets; set FR3_XML to the model XML. Those assets are not bundled.\n"
     )
 
     if output_path.exists():

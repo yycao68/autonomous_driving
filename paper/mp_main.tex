@@ -66,15 +66,29 @@
 \maketitle
 
 \begin{abstract}
-Traditional motion-planning pipelines separate geometric path generation from time parameterization, making reactive 
-updates costly when obstacles or task objectives change. This paper presents a unified local Predictive Motion Planner 
-formulated directly in the time domain. The key observation is architectural: by planning on a virtual double-integrator 
-backbone rather than on a plant linearization, the state-transition matrix $A_d$ stays constant across configurations, 
-where a configuration-dependent MPC would have to rebuild its prediction matrices at every cycle. All prediction matrices 
-can therefore be precomputed offline, and online planning reduces to a convex Quadratic Program (QP) with fixed dynamics 
-structure.
+Traditional motion-planning pipelines separate geometric path generation
+from time parameterization, making updates costly when obstacles or task
+objectives change. This paper presents a local predictive motion planner
+formulated directly in time. Planning on a virtual double-integrator
+backbone rather than a plant linearization keeps the state-transition matrix
+$A_d$ constant across configurations. Prediction matrices are therefore
+precomputed offline, and online planning becomes a convex quadratic program
+(QP) with fixed dynamics structure.
 
-Within this fixed structure the planner obtains, at the cost of one convex QP per cycle, a combination that path-first pipelines reach only in separate stages: velocity and acceleration limits held exactly by construction, together with reactive replanning that never halts to rebuild a path. The price is global time optimality---a time-optimal parameterization stays 3--3.5$\times$ faster on static paths, quantified in Tables~I--II. The planner optimizes time-indexed joint trajectories on a fixed grid, produces position/velocity profiles $(q_d,\dot q_d)$ with hard-bounded piecewise-constant acceleration $\ddot q_d$, and admits a piecewise-jerk triple-integrator extension when continuous acceleration is required; the same extension carries the principle to autonomous-vehicle lateral planning, where bounding lateral jerk yields a smooth, actuator-rate-feasible steering profile. Benchmarks on a 7-DOF FR3 confirm bounded-latency reactive replanning without the stop-and-rebuild of path-first pipelines. In the single-thread Python harness the decoupled box-constrained QP solves well within the 100 Hz budget and the coupled obstacle QP meets it at p95 with fixed-sparsity updates; rare worst-case cycles exceed 10 ms and would need a compiled solver to remove the tail; the reported timings are diagnostic.
+The planner jointly enforces velocity and acceleration limits and updates the
+trajectory without rebuilding a geometric path. This exchanges static-path
+time optimality for reactive constrained generation: time-optimal
+parameterization is 3--3.5$\times$ faster with position tracking, while an
+analytic velocity-law reference narrows the ratio to 1.06--1.32$\times$.
+On a fixed grid, the planner generates $(q_d,\dot q_d)$ with hard-bounded,
+piecewise-constant $\ddot q_d$. A triple-integrator extension bounds jerk when
+continuous acceleration is required; in autonomous-vehicle lateral planning,
+it produces smooth steering within the tested actuator-rate envelope. FR3
+benchmarks show fixed-size reactive updates and exact satisfaction of the
+declared kinematic bounds. On an Intel Xeon w7-2475X, the single-threaded
+Python harness records coupled-QP solve p95 of 3.87--4.49 ms and full-cycle p95
+of 6.60--7.70 ms; full-cycle maxima of 12.26--18.48 ms identify the
+tail-latency target for hard 100 Hz deployment.
 \end{abstract}
 
 \begin{IEEEkeywords}

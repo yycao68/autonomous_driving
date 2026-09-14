@@ -19,7 +19,7 @@ di_planner.py`. An external review hit exactly this.
 
 There are two supported ways to run everything:
 
-**1. Use the frozen standalone snapshot (no second repo needed).**
+**1. Use the frozen standalone snapshot (no second code repository needed).**
 `benchmarks_standalone.zip` is tracked in this repository and contains
 `benchmarks/` with every shim replaced by the real module's actual content,
 plus a `PROVENANCE.txt` recording the exact commit of both repositories the
@@ -28,10 +28,17 @@ snapshot was built from.
 ```bash
 unzip benchmarks_standalone.zip -d /tmp/mp_bench
 cd /tmp/mp_bench/benchmarks
+python3 -m pip install -r requirements.txt
 python3 verify_math.py                # 14 equation checks
 python3 benchmark_av.py               # AV steering comparison
 python3 fr3_dynamic_randomized.py     # 20-trial randomized FR3 table (seed 7)
 ```
+
+The archive reproduces all non-MuJoCo paper tables without the sibling code
+repository. `mujoco_compare.py` additionally needs a third-party Franka FR3
+MuJoCo model and assets that are not bundled; set `FR3_XML` to that model before
+running the computed-torque execution table. See `benchmarks/README.md` for the
+complete script-to-result map.
 
 Each script prints its paper table to stdout. Raw per-trial dumps are not
 committed; `simulationResults/` holds the rendered figures and the AV
@@ -52,10 +59,11 @@ build if the sibling is missing, and stamps `PROVENANCE.txt` with
 
 ## Python dependencies
 
-`numpy`, `scipy`, `osqp`, `matplotlib`; `mujoco` additionally for
-`mujoco_compare.py` and the FR3 rendering scripts. No lockfile is pinned; the
-committed results were produced with the versions in the snapshot's
-`PROVENANCE.txt` commit.
+Install `benchmarks/requirements.txt`, which records the environment used for
+the 2026-09-12 reproduction pass. Wall-clock timings remain hardware/OS
+dependent and are reported with machine context in the paper. The stored MuJoCo
+execution table was produced with MuJoCo 3.8.1 and requires the external model
+described above.
 
 ## What the AV planner does and does not constrain
 
