@@ -39,7 +39,7 @@ QP; it is not the observation that a double integrator is linear.
 
 The idea is inspired by a two-layer predictive impedance-control
 architecture for pHRI \cite{phri}, where dynamic cancellation exposes a
-constant double-integrator residual. Here the double integrator is a
+constant double-integrator residual. That architecture has since been verified on a physical UR5e (held-load error 1.5\,mm $\to$ 0.023\,mm with the estimator)~\cite{phri}. Here the double integrator is a
 \emph{planning backbone}: the
 planner optimizes reference trajectories for a downstream controller
 (computed-torque, impedance, admittance, or other), so the contribution
